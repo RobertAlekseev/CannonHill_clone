@@ -22,7 +22,8 @@ var texture: ImageTexture
 var ip_field: LineEdit
 var status_label: Label
 var values_label: Label
-var origin := Vector2(70, 180)
+var round_label: Label
+var origin := Vector2(70, 240)
 var cell_scale := 4.0
 
 func _ready() -> void:
@@ -43,7 +44,7 @@ func make_ui() -> void:
 	title.modulate = Color("f4d59a")
 	add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "GODOT  /  01     Echtzeit-Artillerie · Sand · LAN für zwei"
+	subtitle.text = "GODOT  /  02     Echtzeit-Artillerie · Lebenspunkte · LAN für zwei"
 	subtitle.position = Vector2(38, 58)
 	subtitle.modulate = Color("8ca9b9")
 	add_child(subtitle)
@@ -59,17 +60,25 @@ func make_ui() -> void:
 		if mode != "client": sim.reset())
 	button("Boden lösen", 762, func():
 		if mode != "client": sim.crater(sim.cannons[player].x, sim.cannons[player].y + 8, 12))
+	button("FEUER", 900, func(): fire_pending = true)
 	status_label = Label.new()
 	status_label.position = Vector2(38, 144)
 	status_label.modulate = Color("8cdfb0")
 	add_child(status_label)
 	values_label = Label.new()
-	values_label.position = Vector2(38, 708)
+	values_label.position = Vector2(38, 782)
 	values_label.add_theme_font_size_override("font_size", 18)
 	add_child(values_label)
+	round_label = Label.new()
+	round_label.position = Vector2(440, 183)
+	round_label.size = Vector2(220, 44)
+	round_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	round_label.add_theme_font_size_override("font_size", 16)
+	round_label.modulate = Color("f4d59a")
+	add_child(round_label)
 	var help := Label.new()
 	help.text = "↑ ↓ Winkel     ← → Stärke     LEERTASTE Feuer     TAB Spieler (offline)     |     Fels trägt · Sand rieselt"
-	help.position = Vector2(38, 738)
+	help.position = Vector2(38, 824)
 	help.add_theme_font_size_override("font_size", 14)
 	help.modulate = Color("8ca9b9")
 	add_child(help)
@@ -154,12 +163,19 @@ func network() -> void:
 		var data = JSON.parse_string(incoming.left(split))
 		incoming = incoming.substr(split + 1)
 		if not data is Dictionary: continue
-		if mode == "host" and data.get("type") == "input" and data.get("version") == 1:
+		if data.get("version") != Sim.PROTOCOL_VERSION:
+			status = "ANDERE SPIELVERSION / Beide Spieler benötigen Godot mit Lebenspunkten (v2)"
+			peer.disconnect_from_host()
+			peer = null
+			incoming = ""
+			outgoing.clear()
+			return
+		if mode == "host" and data.get("type") == "input":
 			sim.input_player(1, float(data.get("angle", 45)), float(data.get("power", 55)), data.get("fire") == true)
 		elif mode == "client" and data.get("type") == "state":
 			if sim.apply_snapshot(data):
 				status = "LAN / Spieler 2 / Host-Tick %d" % sim.tick
-				if sim.tick % 30 < 3: print("STATE_RECEIVED tick=%d impacts=%d" % [sim.tick, sim.impacts])
+				if sim.tick % 30 < 3: print("STATE_RECEIVED tick=%d impacts=%d hp0=%d hp1=%d over=%s winner=%d" % [sim.tick, sim.impacts, sim.cannons[0].hp, sim.cannons[1].hp, sim.round_over, sim.winner])
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
@@ -186,7 +202,7 @@ func _process(delta: float) -> void:
 			if smoke_ticks == 30: fire_pending = true
 			if smoke_ticks == 60 and not capture_path.is_empty(): capture.call_deferred()
 			if smoke_ticks == 200:
-				print("SMOKE_FINISHED tick=%d impacts=%d" % [sim.tick, sim.impacts])
+				print("SMOKE_FINISHED tick=%d impacts=%d hp0=%d hp1=%d" % [sim.tick, sim.impacts, sim.cannons[0].hp, sim.cannons[1].hp])
 				get_tree().quit(0)
 	send_clock += delta
 	if send_clock >= 0.1:
@@ -194,11 +210,15 @@ func _process(delta: float) -> void:
 		if mode == "host": send(sim.snapshot())
 		elif mode == "client" and peer:
 			if outgoing.is_empty():
-				send({"type": "input", "version": 1, "angle": angle, "power": power, "fire": fire_pending})
+				send({"type": "input", "version": Sim.PROTOCOL_VERSION, "angle": angle, "power": power, "fire": fire_pending})
 				fire_pending = false
 	paint_terrain()
 	status_label.text = status
 	values_label.text = "SPIELER %d     WINKEL %02d°     STÄRKE %02d     |     EINSCHLÄGE %d     SAND IN BEWEGUNG %d" % [player + 1, angle, power, sim.impacts, sim.moved]
+	if sim.round_over:
+		round_label.text = ("UNENTSCHIEDEN" if sim.winner == -1 else "SPIELER %d GEWINNT" % (sim.winner + 1)) + "\nNeustart für nächste Runde"
+	else:
+		round_label.text = "STANDARDGESCHOSS\n200 max. Schaden"
 	queue_redraw()
 
 func paint_terrain() -> void:
@@ -215,24 +235,44 @@ func paint_terrain() -> void:
 	texture.update(image)
 
 func _draw() -> void:
+	draw_health_card(0, Vector2(70, 178))
+	draw_health_card(1, Vector2(680, 178))
 	draw_style_box(panel_style(), Rect2(origin - Vector2(2, 2), Vector2(964, 516)))
 	draw_texture_rect(texture, Rect2(origin, Vector2(960, 512)), false)
 	for i in 2:
 		var c: Dictionary = sim.cannons[i]
 		var p := origin + Vector2(c.x, c.y) * cell_scale
 		var color := Color("78dac4") if i == 0 else Color("ef9c86")
+		if c.hp <= 0: color = Color("53616b")
+		elif c.hit_flash > 0.0: color = Color("fff4d6")
 		var dir := Vector2(cos(deg_to_rad(c.angle)) * (1 if i == 0 else -1), -sin(deg_to_rad(c.angle)))
 		draw_line(p - Vector2(12, 0).rotated(c.tilt), p + Vector2(12, 0).rotated(c.tilt), color, 9, true)
-		draw_line(p - Vector2(0, 4), p - Vector2(0, 4) + dir * 28, color, 6, true)
+		draw_line(p - Vector2(0, 4), p - Vector2(0, 4) + dir * (14 if c.hp <= 0 else 28), color, 6, true)
 		for wheel in [-1, 1]:
 			var w := p + Vector2(wheel * 12, 6).rotated(c.tilt)
 			draw_circle(w, 6, Color("15212b"))
 			draw_arc(w, 5, 0, TAU, 20, color, 2, true)
-		if player == i: draw_circle(p - Vector2(0, 35), 3, color)
+		if c.hp <= 0:
+			draw_line(p + Vector2(-8, -20), p + Vector2(8, -4), Color("ef9c86"), 2, true)
+			draw_line(p + Vector2(8, -20), p + Vector2(-8, -4), Color("ef9c86"), 2, true)
+		elif player == i: draw_circle(p - Vector2(0, 35), 3, color)
 	for shot in sim.shots:
 		var p := origin + Vector2(shot.x, shot.y) * cell_scale
 		draw_line(p - Vector2(shot.vx, shot.vy).normalized() * 12, p, Color("f4d59a"), 2, true)
 		draw_circle(p, 3, Color("fff4d6"))
+
+func draw_health_card(index: int, pos: Vector2) -> void:
+	var c: Dictionary = sim.cannons[index]
+	var color := Color("78dac4") if index == 0 else Color("ef9c86")
+	var label := "SPIELER %d" % (index + 1)
+	if c.hp <= 0: label += " · ZERSTÖRT"
+	draw_rect(Rect2(pos, Vector2(350, 50)), Color("101f2a"))
+	draw_string(ThemeDB.fallback_font, pos + Vector2(10, 20), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, color)
+	var hp_text := "%d / %d LP" % [c.hp, c.max_hp]
+	draw_string(ThemeDB.fallback_font, pos + Vector2(205, 20), hp_text, HORIZONTAL_ALIGNMENT_RIGHT, 135, 16, Color("e7edf1"))
+	draw_rect(Rect2(pos + Vector2(10, 32), Vector2(330, 8)), Color("263945"))
+	if c.hp > 0:
+		draw_rect(Rect2(pos + Vector2(10, 32), Vector2(330.0 * c.hp / c.max_hp, 8)), color)
 
 func panel_style() -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()

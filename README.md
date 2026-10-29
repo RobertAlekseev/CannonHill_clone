@@ -2,7 +2,9 @@
 
 Eigenständiger, assetfreier 2D-Artillerieprototyp für **Unity, Godot und Unreal**.
 Ziel: zwei Spieler in Echtzeit über LAN, rieselnder Sand, tragender Untergrund und ballistische Geschosse.
-Das historische Original ist noch nicht eindeutig identifiziert. Keine Originaldateien oder fremder Spielcode sind enthalten.
+Als Referenz ist jetzt **Cannonhill von Dirk Plate** identifiziert. Die belegten Waffen und Hilfsmittel stehen in [CANNONHILL_REFERENCE.md](docs/CANNONHILL_REFERENCE.md). Keine Originaldateien oder fremder Spielcode sind enthalten.
+
+**Aktueller Fokus: Godot.** Godot besitzt Lebenspunkte und Rundenergebnisse; Unity und Unreal bleiben vorerst auf dem Initialstand.
 
 ## Sofort ausprobieren: Godot
 
@@ -13,10 +15,12 @@ Oder in PowerShell, wenn `godot` im PATH liegt:
 godot --path C:\GitHub\CannonHill_clone\godot
 ```
 
-- **↑ / ↓:** Winkel; **← / →:** Stärke; **Leertaste:** schießen.
+- **↑ / ↓:** Winkel; **← / →:** Stärke; **Leertaste** oder **FEUER:** schießen.
 - **Tab:** offline zwischen beiden Kanonen wechseln. Es gibt keine Rundenpflicht.
 - **Boden lösen:** Sand unter der ausgewählten Kanone entfernen und Absacken beobachten.
-- **Neustart:** Welt zurücksetzen (offline oder beim Host).
+- Beide Kanonen starten mit **1.000 Lebenspunkten**. Direkte Treffer verursachen 200 Schaden; nahe Einschläge weniger, auch an der eigenen Kanone.
+- Bei null Lebenspunkten ist die Kanone zerstört. Die Runde endet mit Gewinner oder Unentschieden bei gleichzeitiger Zerstörung. Danach kann niemand mehr feuern.
+- **Neustart:** Welt, Lebenspunkte und Rundenergebnis zurücksetzen (offline oder beim Host).
 - Zum Steuern den Fokus aus dem IP-Eingabefeld nehmen.
 
 ## LAN für zwei Spieler
@@ -27,7 +31,7 @@ godot --path C:\GitHub\CannonHill_clone\godot
 
 TCP-Port **28741**, maximal ein Client. Im vertrauenswürdigen LAN muss die lokale Firewall die Verbindung erlauben. Dieses Projekt verändert keine Firewallregeln. Kein Router-Portforwarding notwendig. `127.0.0.1` dient dem Test mit zwei Instanzen auf demselben Rechner.
 
-Der Host berechnet Sand, Kanonen und Geschosse mit 30 Hz; der Client erhält maximal zehn vollständige Zustände pro Sekunde. Version 1 des Protokolls ist engineübergreifend ausgelegt. Tatsächlich geprüfte Kombinationen stehen in [VALIDATION.md](docs/VALIDATION.md). Keine Anmeldung, Internetsuche, Lobby oder automatische Wiederverbindung.
+Der Host berechnet Sand, Kanonen, Geschosse und Schaden mit 30 Hz; der Client erhält maximal zehn vollständige Zustände pro Sekunde. **Godot verwendet jetzt Protokoll v2 mit Lebenspunkten und Rundenergebnis. Beide LAN-Spieler benötigen diesen Godot-Stand.** Die älteren Unity-/Unreal-Projekte bleiben auf v1; aktuelle Godot-Instanzen weisen diese Verbindungen mit Versionshinweis zurück. Die früher geprüfte Engineübergreifende Verbindung gilt ausschließlich für den Initialstand. Nachweise stehen in [VALIDATION.md](docs/VALIDATION.md). Keine Anmeldung, Internetsuche, Lobby oder automatische Wiederverbindung.
 
 ## Drei Engines, ein Repository
 
@@ -51,7 +55,7 @@ Unreal benötigt zusätzlich den zur gewählten Engine passenden C++-Compiler un
 - Geschosse mit Schwerkraft, Kollisions-Unterteilung, Einschlag und 0,7 Sekunden Nachladezeit.
 - Ausschließlich prozedurale Farben und Geometrie, keine Assetdownloads.
 
-Dies ist ein **gemeinsames Referenzmodell**, kein Vergleich von Unity Physics, Godot Physics und Unreal Chaos. Kanonen kippen und rollen noch nicht frei, Sand übt keinen realistischen Druck aus; Treffer beschädigen noch keine Kanonen. Unterschiede bei Gleitkommazahlen sind möglich, weshalb nur der Host simuliert. Die grafische Darstellung ist absichtlich klein gehalten; Beleuchtung, Partikel und höherwertige Grafik folgen später.
+Dies ist ein **gemeinsames Referenzmodell**, kein Vergleich von Unity Physics, Godot Physics und Unreal Chaos. Kanonen kippen und rollen noch nicht frei, Sand übt keinen realistischen Druck aus. Godot modelliert nun Schaden; Unity und Unreal noch nicht. Unterschiede bei Gleitkommazahlen sind möglich, weshalb nur der Host simuliert. Die grafische Darstellung ist absichtlich klein gehalten; Beleuchtung, Partikel und höherwertige Grafik folgen später.
 
 ## Gemeinsam entwickeln
 
@@ -68,11 +72,12 @@ Kleine eigene Szenen, Code, Projektkonfiguration und Referenz-Metadaten bleiben 
 ```powershell
 godot --headless --path .\godot --script res://tests/smoke.gd
 .\tools\Test-Lan.ps1
-.\tools\Test-EnginePair.ps1 -HostEngine unity -ClientEngine godot
-.\tools\Test-EnginePair.ps1 -HostEngine godot -ClientEngine unity
+.\tools\Test-GodotHealthLan.ps1
 & 'C:\Program Files\Unity 6000.6.3f1\Editor\Unity.exe' -batchmode -nographics -quit -projectPath "$PWD\unity" -executeMethod ProjectSetup.Build -logFile "$PWD\reports\unity-build.log"
 ```
 
 Builds, Logs und Screenshots bleiben lokal in `builds/` und `reports/`. Engine-Caches sind ignoriert. Teststand und Grenzen: [VALIDATION.md](docs/VALIDATION.md).
 
-![Godot-Prototyp mit Sand, zwei Kanonen und einem fliegenden Projektil](docs/images/godot-sandbox.png)
+`Test-EnginePair.ps1` bleibt für die v1-Initialprojekte erhalten; Godot/Unity-Paarungen sind mit dem aktuellen Gesundheitsstand nicht kompatibel.
+
+![Godot mit Lebenspunkten, Trefferschaden und Sandkrater](docs/images/godot-health.png)

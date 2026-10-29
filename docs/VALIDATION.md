@@ -1,10 +1,28 @@
 # Prüfstand
 
-Stand: 29.10.2026, Windows, Initialprototyp.
+Stand: 29.10.2026, Windows.
+
+## Aktuell: Godot mit Lebenspunkten
 
 | Prüfung | Ergebnis |
 |---|---|
-| Godot 4.7.2, 13 Simulationsprüfungen | Bestanden: Sanderhaltung, Fels, Auflage, Untergrabung, Nachrutschen, Schuss, Cooldown, Flug, Einschlag, Snapshot und Version |
+| Godot 4.7.2, 29 Simulationsprüfungen | Bestanden: bisherige Sand-/Ballistiktests plus direkte Treffer, Distanzschaden, Selbstschaden, Tod, Gleichstand, Schusssperre, HP-Snapshot, Version und Neustart |
+| Zwei Godot-Prozesse, `Test-GodotHealthLan.ps1` | Bestanden: Client und Host feuern über die reale TCP-Verbindung. Client sieht 1000→800→600→400→200→0 HP, Gewinner und Host-Neustart auf volle HP |
+| Bisheriger Godot-LAN-Test, `Test-Lan.ps1` | Weiterhin bestanden: beide Spieler feuern, beide Einschläge werden übertragen |
+| Native Szene, Schaden | Bestanden: 800/1000 LP, reduzierter Balken und Krater; Feuer-Button-Signal löst einen weiteren Schuss aus |
+| Native Szene, zerstörte Kanone | Bestanden: 0/1000 LP, Wrack, Gewinnertext; Feuer-Button kann nach Rundenende keinen Schuss erzeugen |
+| Visuelle Kontrolle | Vorher-, Schadens- und Sieger-Screenshots angesehen; HUD und Welt ohne Überlagerung |
+| Unity und Unreal | In diesem Schritt unverändert; keine Gesundheitsparität behauptet |
+
+Godot nutzt jetzt Protokoll v2. Die nachfolgenden Engineübergreifenden Tests belegen **nur den Initialstand mit v1**, nicht Kompatibilität der aktuellen Godot-Erweiterung.
+
+Lokale neue Nachweise: `reports/godot-health-tests.log`, `health-lan-{host,client}.log`, `godot-health-scene.log`, `godot-victory-scene.log` und `godot-health-{before,after,victory}.png`. Zwei kleine geprüfte Ergebnisbilder liegen unter `docs/images/`. Echte Tastatur-/Mausbedienung auf zwei physischen Rechnern und Langzeittest bleiben offen.
+
+## Initialstand 717005d (historischer Prüfstand, Protokoll v1)
+
+| Prüfung | Ergebnis |
+|---|---|
+| Godot 4.7.2, 12 Simulationsprüfungen | Bestanden: Sanderhaltung, Fels, Auflage, Untergrabung, Nachrutschen, Schuss, Cooldown, Flug, Einschlag, Snapshot und Version; frühere Angabe 13 war ein Zählfehler |
 | Godot-Szene, 200 Simulationsschritte mit automatischem Schuss | Bestanden, ein Einschlag |
 | Unity 6000.6.3f1, 8 Simulationsprüfungen | Bestanden |
 | Unity Windows x64 Development Build | Erfolgreich, lokal unter `builds/unity/CannonHill.exe` |

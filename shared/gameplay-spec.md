@@ -11,6 +11,20 @@
 - Flug: zuerst vy += g*dt; dann Bewegung mit Unterteilung auf höchstens eine halbe Zelle. Bodenprobe pro Teilstück. Maximalalter 12 s.
 - Einschlag: Kreisradius 10 Zellen, ausschließlich Sand entfernen. Sand fällt anschließend nach.
 - Debug „Boden lösen“: Radius 12 bei Kanone+(0,8). Nur offline oder Host.
-- Keine Gesundheit, Siegbedingungen, KI, Waffenwahl oder Originalgrafiken in dieser Stufe.
+- Der Initialstand hat keine Gesundheit, Siegbedingungen, KI, Waffenwahl oder Originalgrafiken.
 
 Alle Engines verwenden dieses Modell in eigenem Quellcode. Das ist Grundlage für Parität und späteren Physikvergleich, noch keine Verwendung nativer Rigid-Body-Solver.
+
+## Godot-Erweiterung: Lebenspunkte (v2)
+
+Nur Godot erweitert den Initialstand vorerst:
+
+- 1.000 Lebenspunkte je Kanone, auf null begrenzt.
+- Runde Kanonen-Hitbox mit Radius 4 Zellen, pro Projektil-Unterteilschritt geprüft; tote Kanonen sind Wracks und keine Trefferziele.
+- Direkter Treffer: genau 200 Schaden. Derselbe Treffer fügt dem direkten Ziel keinen zweiten Explosionsschaden zu.
+- Explosionsradius 14 Zellen ab Hüllenrand. Schaden: `round(200 * max(0, 1 - max(0, Abstand_zum_Zentrum - 4) / 14))`.
+- Selbstschaden ist möglich. Debug-Untergrabung verursacht keinen Schaden; Fall-/Aufprallschaden ist noch nicht enthalten.
+- Nach allen Geschossen eines Schritts prüfen: eine lebende Kanone → Gewinner; keine → Unentschieden. Weitere Geschosse werden entfernt, neue Schüsse bis zum Neustart gesperrt. Sand und Wracks können weiter absacken.
+- Neustart regeneriert Terrain, Kanonen, HP und Rundenstatus. Im LAN entscheidet ausschließlich der Host.
+
+Dies ist eigenes Prototyp-Balancing; keine vollständige Originalphysik oder Waffenparität.
