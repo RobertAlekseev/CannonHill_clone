@@ -1,0 +1,27 @@
+name: Abgegrenzte Aufgabe
+description: Aufgabe mit Dateizustaendigkeit und Abnahme reservieren
+title: '[TASK] '
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Ziel und Abnahme
+      description: Was muss nach der Aufgabe sichtbar funktionieren?
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Reservierte Dateien und Abhaengigkeiten
+      description: Vor Beginn zuweisen. Keine gleichzeitig aktive Aufgabe mit denselben Dateien.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Abschluss
+      options:
+        - label: Aufgabe ist genau einer Person zugewiesen
+        - label: Betroffene Dateien sind nicht anderweitig reserviert
+        - label: Tests und Grenzen dokumentiert
+        - label: Pull Request zur Pruefung bereit

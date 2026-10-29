@@ -1,0 +1,244 @@
+extends Node2D
+const Sim = preload("res://simulation.gd")
+const PORT := 28741
+var sim = Sim.new()
+var server := TCPServer.new()
+var peer: StreamPeerTCP
+var incoming := ""
+var outgoing := PackedByteArray()
+var mode := "offline"
+var player := 0
+var status := "OFFLINE / Tab wechselt die Kanone"
+var accumulator := 0.0
+var send_clock := 0.0
+var angle := 45.0
+var power := 55.0
+var fire_pending := false
+var auto_smoke := false
+var capture_path := ""
+var smoke_ticks := 0
+var image := Image.create(Sim.W, Sim.H, false, Image.FORMAT_RGBA8)
+var texture: ImageTexture
+var ip_field: LineEdit
+var status_label: Label
+var values_label: Label
+var origin := Vector2(70, 180)
+var cell_scale := 4.0
+
+func _ready() -> void:
+	texture = ImageTexture.create_from_image(image)
+	make_ui()
+	for arg in OS.get_cmdline_user_args():
+		if arg == "--host": host()
+		elif arg.begins_with("--join="): join(arg.trim_prefix("--join="))
+		elif arg == "--smoke": auto_smoke = true
+		elif arg.begins_with("--capture="): capture_path = arg.trim_prefix("--capture=")
+	paint_terrain()
+
+func make_ui() -> void:
+	var title := Label.new()
+	title.text = "CANNON HILL   /   SAND LABORATORY"
+	title.position = Vector2(36, 20)
+	title.add_theme_font_size_override("font_size", 27)
+	title.modulate = Color("f4d59a")
+	add_child(title)
+	var subtitle := Label.new()
+	subtitle.text = "GODOT  /  01     Echtzeit-Artillerie · Sand · LAN für zwei"
+	subtitle.position = Vector2(38, 58)
+	subtitle.modulate = Color("8ca9b9")
+	add_child(subtitle)
+	button("Offline", 38, func(): disconnect_network(); sim.reset())
+	button("LAN hosten", 150, host)
+	ip_field = LineEdit.new()
+	ip_field.position = Vector2(288, 99)
+	ip_field.size = Vector2(185, 34)
+	ip_field.text = "127.0.0.1"
+	add_child(ip_field)
+	button("Verbinden", 486, func(): join(ip_field.text.strip_edges()))
+	button("Neustart", 624, func():
+		if mode != "client": sim.reset())
+	button("Boden lösen", 762, func():
+		if mode != "client": sim.crater(sim.cannons[player].x, sim.cannons[player].y + 8, 12))
+	status_label = Label.new()
+	status_label.position = Vector2(38, 144)
+	status_label.modulate = Color("8cdfb0")
+	add_child(status_label)
+	values_label = Label.new()
+	values_label.position = Vector2(38, 708)
+	values_label.add_theme_font_size_override("font_size", 18)
+	add_child(values_label)
+	var help := Label.new()
+	help.text = "↑ ↓ Winkel     ← → Stärke     LEERTASTE Feuer     TAB Spieler (offline)     |     Fels trägt · Sand rieselt"
+	help.position = Vector2(38, 738)
+	help.add_theme_font_size_override("font_size", 14)
+	help.modulate = Color("8ca9b9")
+	add_child(help)
+
+func button(text: String, x: float, action: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.position = Vector2(x, 99)
+	b.size = Vector2(125 if x != 38 else 100, 34)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(action)
+	add_child(b)
+
+func disconnect_network() -> void:
+	if peer: peer.disconnect_from_host()
+	peer = null
+	server.stop()
+	incoming = ""
+	outgoing.clear()
+	mode = "offline"
+	player = 0
+	status = "OFFLINE / Tab wechselt die Kanone"
+
+func host() -> void:
+	disconnect_network()
+	var error := server.listen(PORT)
+	if error != OK:
+		status = "Host fehlgeschlagen: " + error_string(error)
+		return
+	mode = "host"
+	status = "HOST / TCP 28741 / warte auf Spieler 2"
+	print("HOST_READY")
+
+func join(address: String) -> void:
+	disconnect_network()
+	peer = StreamPeerTCP.new()
+	var error := peer.connect_to_host(address, PORT)
+	if error != OK:
+		status = "Verbindung fehlgeschlagen: " + error_string(error)
+		peer = null
+		return
+	mode = "client"
+	player = 1
+	status = "VERBINDE / " + address
+
+func send(message: Dictionary) -> void:
+	# Never queue unlimited stale snapshots behind a slow connection.
+	if peer and outgoing.is_empty(): outgoing = (JSON.stringify(message) + "\n").to_utf8_buffer()
+
+func network() -> void:
+	if mode == "host" and server.is_connection_available():
+		var candidate := server.take_connection()
+		if peer: candidate.disconnect_from_host()
+		else:
+			peer = candidate
+			peer.set_no_delay(true)
+			status = "HOST / Spieler 2 verbunden"
+			print("PEER_CONNECTED")
+	if not peer: return
+	peer.poll()
+	var connection := peer.get_status()
+	if connection == StreamPeerTCP.STATUS_ERROR or connection == StreamPeerTCP.STATUS_NONE:
+		peer = null
+		incoming = ""
+		outgoing.clear()
+		status = "VERBINDUNG GETRENNT / Offline oder erneut verbinden"
+		if mode == "host": status = "HOST / Spieler getrennt / warte auf Spieler 2"
+		return
+	if connection != StreamPeerTCP.STATUS_CONNECTED: return
+	if not outgoing.is_empty():
+		var written := peer.put_partial_data(outgoing)
+		if written[0] == OK: outgoing = outgoing.slice(written[1])
+	var available := peer.get_available_bytes()
+	if available > 0:
+		var received := peer.get_data(available)
+		if received[0] == OK: incoming += received[1].get_string_from_utf8()
+	if incoming.length() > 262144:
+		peer.disconnect_from_host()
+		return
+	while incoming.contains("\n"):
+		var split := incoming.find("\n")
+		var data = JSON.parse_string(incoming.left(split))
+		incoming = incoming.substr(split + 1)
+		if not data is Dictionary: continue
+		if mode == "host" and data.get("type") == "input" and data.get("version") == 1:
+			sim.input_player(1, float(data.get("angle", 45)), float(data.get("power", 55)), data.get("fire") == true)
+		elif mode == "client" and data.get("type") == "state":
+			if sim.apply_snapshot(data):
+				status = "LAN / Spieler 2 / Host-Tick %d" % sim.tick
+				if sim.tick % 30 < 3: print("STATE_RECEIVED tick=%d impacts=%d" % [sim.tick, sim.impacts])
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_SPACE: fire_pending = true
+		if event.keycode == KEY_TAB and mode == "offline":
+			player = 1 - player
+			angle = sim.cannons[player].angle
+			power = sim.cannons[player].power
+
+func _process(delta: float) -> void:
+	network()
+	if not ip_field.has_focus():
+		angle = clampf(angle + (float(Input.is_physical_key_pressed(KEY_UP)) - float(Input.is_physical_key_pressed(KEY_DOWN))) * delta * 40.0, 5, 85)
+		power = clampf(power + (float(Input.is_physical_key_pressed(KEY_RIGHT)) - float(Input.is_physical_key_pressed(KEY_LEFT))) * delta * 30.0, 15, 90)
+	accumulator += minf(delta, 0.15)
+	while accumulator >= Sim.DT:
+		accumulator -= Sim.DT
+		if mode != "client":
+			sim.input_player(player, angle, power, fire_pending)
+			sim.step()
+			fire_pending = false
+		if auto_smoke:
+			smoke_ticks += 1
+			if smoke_ticks == 30: fire_pending = true
+			if smoke_ticks == 60 and not capture_path.is_empty(): capture.call_deferred()
+			if smoke_ticks == 200:
+				print("SMOKE_FINISHED tick=%d impacts=%d" % [sim.tick, sim.impacts])
+				get_tree().quit(0)
+	send_clock += delta
+	if send_clock >= 0.1:
+		send_clock = 0.0
+		if mode == "host": send(sim.snapshot())
+		elif mode == "client" and peer:
+			if outgoing.is_empty():
+				send({"type": "input", "version": 1, "angle": angle, "power": power, "fire": fire_pending})
+				fire_pending = false
+	paint_terrain()
+	status_label.text = status
+	values_label.text = "SPIELER %d     WINKEL %02d°     STÄRKE %02d     |     EINSCHLÄGE %d     SAND IN BEWEGUNG %d" % [player + 1, angle, power, sim.impacts, sim.moved]
+	queue_redraw()
+
+func paint_terrain() -> void:
+	for y in Sim.H:
+		for x in Sim.W:
+			var cell: int = sim.cells[y * Sim.W + x]
+			var color := Color(0.05 + y * 0.0003, 0.10 + y * 0.0003, 0.15 + y * 0.0003)
+			if cell == 1:
+				var grain := float((x * 17 + y * 31) % 11) / 110.0
+				color = Color(0.72 + grain, 0.50 + grain, 0.27 + grain)
+				if y > 0 and sim.cells[(y - 1) * Sim.W + x] == 0: color = Color("f4d59a")
+			elif cell == 2: color = Color("344854")
+			image.set_pixel(x, y, color)
+	texture.update(image)
+
+func _draw() -> void:
+	draw_style_box(panel_style(), Rect2(origin - Vector2(2, 2), Vector2(964, 516)))
+	draw_texture_rect(texture, Rect2(origin, Vector2(960, 512)), false)
+	for i in 2:
+		var c: Dictionary = sim.cannons[i]
+		var p := origin + Vector2(c.x, c.y) * cell_scale
+		var color := Color("78dac4") if i == 0 else Color("ef9c86")
+		var dir := Vector2(cos(deg_to_rad(c.angle)) * (1 if i == 0 else -1), -sin(deg_to_rad(c.angle)))
+		draw_line(p - Vector2(12, 0).rotated(c.tilt), p + Vector2(12, 0).rotated(c.tilt), color, 9, true)
+		draw_line(p - Vector2(0, 4), p - Vector2(0, 4) + dir * 28, color, 6, true)
+		for wheel in [-1, 1]:
+			var w := p + Vector2(wheel * 12, 6).rotated(c.tilt)
+			draw_circle(w, 6, Color("15212b"))
+			draw_arc(w, 5, 0, TAU, 20, color, 2, true)
+		if player == i: draw_circle(p - Vector2(0, 35), 3, color)
+	for shot in sim.shots:
+		var p := origin + Vector2(shot.x, shot.y) * cell_scale
+		draw_line(p - Vector2(shot.vx, shot.vy).normalized() * 12, p, Color("f4d59a"), 2, true)
+		draw_circle(p, 3, Color("fff4d6"))
+
+func panel_style() -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color("43616c")
+	return s
+
+func capture() -> void:
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(capture_path)

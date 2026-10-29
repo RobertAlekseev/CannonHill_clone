@@ -1,0 +1,24 @@
+# Generated engine data; source scenes and metadata stay versioned.
+godot/.godot/
+unity/Library/
+unity/Temp/
+unity/Logs/
+unity/Obj/
+unity/UserSettings/
+unity/.vs/
+unreal/Binaries/
+unreal/Intermediate/
+unreal/Saved/
+unreal/DerivedDataCache/
+.vs/
+*.sln
+*.csproj
+*.log
+builds/
+reports/
+external-assets/*
+!external-assets/README.md
+.env
+.env.*
+*.pfx
+*.key

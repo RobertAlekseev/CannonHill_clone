@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "packages": [],
+  "note": "The initial prototype requires no external assets. Add versioned packages with relative target paths, sizeBytes, sha256, source and license before USB import."
+}
