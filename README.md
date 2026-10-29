@@ -7,17 +7,22 @@ Das historische Original ist noch nicht eindeutig identifiziert. Keine Originald
 ## Sofort ausprobieren: Godot
 
 `godot/project.godot` mit Godot 4.7.2 öffnen und **F6/F5** starten (Hauptszene: `main.tscn`).
-Oder in PowerShell, wenn `godot` im PATH liegt:
+Oder in PowerShell bzw. unter macOS (`brew install --cask godot` legt `godot` in den PATH):
 
 ```powershell
 godot --path C:\GitHub\CannonHill_clone\godot
+```
+
+```bash
+godot --path ~/GitHub/cannonhill_clone/godot
 ```
 
 - **↑ / ↓:** Winkel; **← / →:** Stärke; **Leertaste:** schießen.
 - **Tab:** offline zwischen beiden Kanonen wechseln. Es gibt keine Rundenpflicht.
 - **Boden lösen:** Sand unter der ausgewählten Kanone entfernen und Absacken beobachten.
 - **Neustart:** Welt zurücksetzen (offline oder beim Host).
-- Zum Steuern den Fokus aus dem IP-Eingabefeld nehmen.
+- Zum Steuern den Fokus aus dem IP-Eingabefeld nehmen (**Esc**).
+- Godot zeigt eine kurze Flugbahnvorschau, Ladebalken und Stärkeanzeige; Schuss und Einschlag haben Sound, Trümmer, Blitz und Kamerawackeln. Der Client rekonstruiert diese Effekte aus den Snapshots und zeichnet Geschosse zwischen zwei Zuständen ballistisch weiter. Protokoll und Simulation bleiben unverändert (v1).
 
 ## LAN für zwei Spieler
 
@@ -37,7 +42,8 @@ Der Host berechnet Sand, Kanonen und Geschosse mit 30 Hz; der Client erhält max
 | `unity/` | In Unity Hub als Projekt hinzufügen; Unity **6000.6.3f1**; Menü **Cannon Hill → Create or open sandbox**, dann Play |
 | `unreal/` | C++-Quellprojekt für UE **5.4+**; `.uproject` einer installierten Engine zuordnen, Projektdateien erzeugen, Development Editor kompilieren und Play |
 | `shared/` | Gemeinsame Maße, Regeln und Netzwerkformat |
-| `asset-manifests/` | Versions- und Prüfsummenlisten für spätere USB-Pakete |
+| `shared/assets/` | Kleine, engineneutrale Assets in Git (z. B. `audio/fire.wav`), von allen Engines direkt gelesen |
+| `asset-manifests/` | Asset-IDs → Pfade, Größen und SHA-256 für `shared/assets/` und USB-Pakete |
 | `external-assets/` | Ignorierter Ablageplatz für große Pakete |
 
 Unreal benötigt zusätzlich den zur gewählten Engine passenden C++-Compiler und das Windows SDK. Diese werden nicht automatisch installiert. Der Unreal-Prototyp zeichnet die 2D-Welt im HUD und benötigt keine eigenen binären Maps. Startmap ist die mit der Engine gelieferte Entry-Map.
@@ -61,9 +67,23 @@ Ein öffentliches Repository kann dein Kollege sofort lesen und klonen. Für Sch
 
 ## Große Assets per USB
 
+Alle Engines adressieren Assets über eine **ID** aus `asset-manifests/assets.json` (z. B. `audio.impact`), nicht über engineeigene Kopien. Kleine eigene Dateien liegen einmalig unter `shared/assets/`, große USB-Pakete unter `external-assets/<paket>-vNNN/`. Godot liest beides zur Laufzeit über `godot/shared_assets.gd` (Repo-Root automatisch, sonst Umgebungsvariable `CANNONHILL_ROOT`) und prüft die Prüfsumme; fehlt eine Datei, läuft das Spiel ohne sie weiter. Die Sounds erzeugt `python3 tools/generate_shared_audio.py --manifest` deterministisch neu.
+
 Kleine eigene Szenen, Code, Projektkonfiguration und Referenz-Metadaten bleiben in Git. Große Pakete werden unter stabilen Pfaden und mit Versionsnummer per USB ausgetauscht. Das Manifest im Repository enthält Zielpfad, Herkunft, Lizenz, Dateigröße und SHA-256. Details: [USB_ASSETS.md](docs/USB_ASSETS.md).
 
 ## Prüfen und bauen
+
+macOS/Linux:
+
+```bash
+godot --headless --path godot --script res://tests/smoke.gd
+```
+
+```bash
+tools/test-lan.sh
+```
+
+Windows:
 
 ```powershell
 godot --headless --path .\godot --script res://tests/smoke.gd

@@ -1,5 +1,6 @@
 extends SceneTree
 const Sim = preload("res://simulation.gd")
+const Assets = preload("res://shared_assets.gd")
 var failures := 0
 
 func check(condition: bool, description: String) -> void:
@@ -38,6 +39,23 @@ func _initialize() -> void:
 	check(s.shots[0].x > initial.x and s.shots[0].y < initial.y, "initial ballistic flight")
 	for i in 400: s.step()
 	check(s.impacts > 0 and s.shots.is_empty(), "shot impacts terrain and is removed")
+	check(s.events.filter(func(e): return e.type == "fire").size() == 1, "fire emits one local event")
+	check(s.events.filter(func(e): return e.type == "impact").size() == s.impacts, "each impact emits one local event")
+	s.reset()
+	for i in 120: s.step()
+	var preview: Dictionary = s.trajectory(1, 30, 70, 400)
+	s.input_player(1, 30, 70, true)
+	var flown := 0
+	while not s.shots.is_empty() and flown < 400:
+		s.step()
+		flown += 1
+	var landing: Vector2 = preview.points[-1]
+	var impact: Dictionary = s.events[-1]
+	check(preview.hit and landing.distance_to(Vector2(impact.x, impact.y)) < 0.5, "trajectory preview predicts the impact")
+	check(not s.snapshot().has("events"), "local events stay out of the snapshot")
+	var assets = Assets.new()
+	check(assets.problems.is_empty() and assets.has("audio.fire") and assets.has("audio.impact"), "shared assets resolve with valid checksums")
+	check(assets.audio("audio.impact") is AudioStreamWAV, "shared audio loads from outside the Godot project")
 	var clone = Sim.new()
 	check(clone.apply_snapshot(s.snapshot()) and clone.cells == s.cells and clone.tick == s.tick, "network snapshot roundtrip")
 	check(not clone.apply_snapshot({"version": 99}), "incompatible protocol rejected")

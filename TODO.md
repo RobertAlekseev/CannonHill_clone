@@ -7,6 +7,7 @@ Aktuell arbeitet Robert allein. GitHub-Issues sind die verbindliche Zuweisung; d
 | M0 | Repo, Regeln, Startanleitungen | Öffentlicher Klon enthält keine Caches, Secrets oder großen Assets | Robert | Initialcommit |
 | G1 | Godot-Sand und Kanonen: `godot/simulation.gd` | Sand bleibt erhalten, Kanone steht und sackt nach Untergrabung ab | Robert | Automatisiert geprüft |
 | G2 | Godot-Ansicht und LAN: `godot/main.gd` | Zwei Prozesse tauschen Zustände und Feuerbefehle aus | Robert | Loopback und Ansicht geprüft |
+| G3 | Godot-Darstellung und Shared-Assets: `godot/main.gd`, `godot/shared_assets.gd`, `shared/assets/`, `asset-manifests/` | Vorschau, Effekte, Sounds aus gemeinsamem Ordner; Protokoll v1 unverändert | Robert | Automatisiert geprüft (macOS) |
 | U1 | Unity-Parität: `unity/Assets/` | Simulationstests, Windows-Build und LAN-Schnittstelle | Robert | Build, Tests und beide LAN-Richtungen geprüft |
 | E1 | Unreal-Parität: `unreal/` | Kompilation, Play, Sand und Projektil, Host/Client | Robert | Quellprojekt; Engine fehlt |
 | L1 | Echter LAN-Test / zwei PCs: `docs/VALIDATION.md` | Beide können gleichzeitig schießen; Trennung und Neuverbindung geprüft | Robert | Offen |

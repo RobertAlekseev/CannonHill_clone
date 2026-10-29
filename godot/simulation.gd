@@ -11,6 +11,8 @@ var shots: Array[Dictionary] = []
 var tick := 0
 var impacts := 0
 var moved := 0
+## Local presentation events (fire / impact). Never part of a snapshot.
+var events: Array[Dictionary] = []
 
 func _init() -> void:
 	reset()
@@ -27,6 +29,7 @@ func reset() -> void:
 		cannons.append({"x": x, "y": float(surface_at(int(x))) - 3.0, "vy": 0.0,
 			"angle": 45.0, "power": 55.0, "cooldown": 0.0, "tilt": 0.0})
 	shots.clear()
+	events.clear()
 	tick = 0
 	impacts = 0
 
@@ -46,11 +49,40 @@ func input_player(player: int, angle: float, power: float, fire: bool) -> void:
 	c.angle = clampf(angle, 5.0, 85.0)
 	c.power = clampf(power, 15.0, 90.0)
 	if fire and c.cooldown <= 0.0 and shots.size() < 32:
-		var direction := Vector2(cos(deg_to_rad(c.angle)) * (1.0 if player == 0 else -1.0), -sin(deg_to_rad(c.angle)))
-		var pos := Vector2(c.x, c.y - 1.0) + direction * 7.0
+		var direction := aim(player, c.angle)
+		var pos := muzzle(player)
 		shots.append({"x": pos.x, "y": pos.y, "vx": direction.x * c.power,
 			"vy": direction.y * c.power, "age": 0.0})
 		c.cooldown = 0.7
+		events.append({"type": "fire", "player": player, "x": pos.x, "y": pos.y})
+
+static func aim(player: int, angle: float) -> Vector2:
+	return Vector2(cos(deg_to_rad(angle)) * (1.0 if player == 0 else -1.0), -sin(deg_to_rad(angle)))
+
+func muzzle(player: int, angle: float = NAN) -> Vector2:
+	var c: Dictionary = cannons[player]
+	return Vector2(c.x, c.y - 1.0) + aim(player, c.angle if is_nan(angle) else angle) * 7.0
+
+## Same integration as step() without changing the world. Returns one point per
+## tick; when the flight ends in the ground, the last point is the hit position.
+func march(pos: Vector2, vel: Vector2, max_ticks: int) -> Dictionary:
+	var points := PackedVector2Array([pos])
+	for t in max_ticks:
+		vel.y += GRAVITY * DT
+		var count := maxi(1, int(ceil(vel.length() * DT * 2.0)))
+		for substep in count:
+			pos += vel * DT / count
+			if solid(int(floor(pos.x)), int(floor(pos.y))):
+				points.append(pos)
+				return {"points": points, "hit": true}
+		points.append(pos)
+		if pos.x < 0.0 or pos.x >= W or pos.y >= H:
+			break
+	return {"points": points, "hit": false}
+
+func trajectory(player: int, angle: float, power: float, max_ticks: int = 90) -> Dictionary:
+	var clamped := clampf(angle, 5.0, 85.0)
+	return march(muzzle(player, clamped), aim(player, clamped) * clampf(power, 15.0, 90.0), max_ticks)
 
 func crater(cx: float, cy: float, radius: float = 10.0) -> void:
 	for y in range(maxi(0, int(cy - radius)), mini(H, int(cy + radius) + 1)):
@@ -109,6 +141,7 @@ func step() -> void:
 			shot.x += shot.vx * DT / count
 			shot.y += shot.vy * DT / count
 			if solid(int(floor(shot.x)), int(floor(shot.y))):
+				events.append({"type": "impact", "x": shot.x, "y": shot.y})
 				crater(shot.x, shot.y)
 				hit = true
 				break

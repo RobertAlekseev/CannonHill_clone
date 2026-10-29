@@ -1,6 +1,18 @@
 # Prüfstand
 
-Stand: 29.10.2026, Windows, Initialprototyp.
+Stand: 29.10.2026, Windows, Initialprototyp. Ergänzt am selben Tag auf macOS mit Godot 4.7.2 (Homebrew).
+
+## Godot-Ausbau G3 (macOS)
+
+| Prüfung | Ergebnis |
+|---|---|
+| Godot 4.7.2, 18 Simulationsprüfungen | Bestanden, zusätzlich: Feuer-/Einschlagereignisse, Flugbahnvorschau trifft den echten Einschlag, Ereignisse nicht im Snapshot, Shared-Assets mit Prüfsumme außerhalb von `godot/` geladen |
+| Godot-Szene headless und mit Fenster, 200 Schritte | Bestanden, ein Schuss, ein Einschlag, beide Sounds geladen |
+| `tools/test-lan.sh`, Godot Host → Godot Client | Bestanden; Client rekonstruiert beide Schüsse und Einschläge als Effekte |
+| Screenshots mit Vorschau und Einschlageffekt | Angesehen (`reports/godot-view.png`, `reports/godot-impact.png`, lokal) |
+| Unity/Unreal mit den Godot-Änderungen | Nicht erneut geprüft; Protokoll v1 und Simulationsregeln sind unverändert |
+
+## Initialprototyp (Windows)
 
 | Prüfung | Ergebnis |
 |---|---|
