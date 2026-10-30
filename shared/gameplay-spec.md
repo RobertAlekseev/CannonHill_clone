@@ -28,3 +28,11 @@ Nur Godot erweitert den Initialstand vorerst:
 - Neustart regeneriert Terrain, Kanonen, HP und Rundenstatus. Im LAN entscheidet ausschließlich der Host.
 
 Dies ist eigenes Prototyp-Balancing; keine vollständige Originalphysik oder Waffenparität.
+
+## Godot-Erweiterung: Starrkörper-Kanonen (v3)
+
+- Kanonen nutzen das Modell aus `physics-proposal-p1.md` (`godot/rigid_cannon.gd`) statt der v1-Radstützpunkte. Startposition wie v1, Räder immer gebremst.
+- Rohrrichtung = Zielrichtung aus v1, um die Chassisneigung gedreht. Drehpunkt Körper + (0, −2) gedreht, Mündung 7 Zellen weiter.
+- Rückstoß beim Schuss: Impuls `−Rohrrichtung × Stärke × 0,03` an der Mündung.
+- Gekippt (|Neigung| > 90°): keine Schüsse. Nach 3 s ununterbrochen gekippt wird die Kanone aufrecht auf die Oberfläche gesetzt (nicht als Wrack).
+- Kanonen bleiben horizontal zwischen 4 und W−4.

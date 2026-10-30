@@ -3,7 +3,7 @@ extends Node2D
 ## The v1 support model runs alongside as a white outline for comparison.
 ## godot --path godot res://lab/tipping_lab.tscn
 const Sim = preload("res://simulation.gd")
-const Rigid = preload("res://lab/rigid_cannon.gd")
+const Rigid = preload("res://rigid_cannon.gd")
 ## Recoil per unit of shot speed; 55 cells/s gives about 1.6 (rocks back).
 const RECOIL := 0.03
 var sim = Sim.new()

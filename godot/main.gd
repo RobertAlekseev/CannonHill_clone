@@ -67,7 +67,7 @@ func make_ui() -> void:
 	title.modulate = Color("f4d59a")
 	add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "GODOT  /  02     Echtzeit-Artillerie · Lebenspunkte · LAN für zwei"
+	subtitle.text = "GODOT  /  03     Echtzeit-Artillerie · Lebenspunkte · Kippphysik · LAN für zwei"
 	subtitle.position = Vector2(38, 58)
 	subtitle.modulate = Color("8ca9b9")
 	add_child(subtitle)
@@ -187,7 +187,7 @@ func network() -> void:
 		incoming = incoming.substr(split + 1)
 		if not data is Dictionary: continue
 		if data.get("version") != Sim.PROTOCOL_VERSION:
-			status = "ANDERE SPIELVERSION / Beide Spieler benötigen Godot mit Lebenspunkten (v2)"
+			status = "ANDERE SPIELVERSION / Beide Spieler benötigen Godot v%d (Lebenspunkte + Kippphysik)" % Sim.PROTOCOL_VERSION
 			peer.disconnect_from_host()
 			peer = null
 			incoming = ""
@@ -369,8 +369,9 @@ func _draw() -> void:
 		var color := cannon_color(i)
 		if c.hp <= 0: color = Color("53616b")
 		elif c.hit_flash > 0.0: color = Color("fff4d6")
-		var dir := Sim.aim(i, angle if i == player else c.angle)
-		draw_line(p - Vector2(0, 4), p - Vector2(0, 4) + dir * (14 if c.hp <= 0 else 28), color, 6, true)
+		var dir: Vector2 = sim.barrel(i, angle if i == player else c.angle)
+		var pivot := p + Vector2(0, -8).rotated(c.tilt)
+		draw_line(pivot, pivot + dir * (14 if c.hp <= 0 else 28), color, 6, true)
 		draw_line(p - Vector2(12, 0).rotated(c.tilt), p + Vector2(12, 0).rotated(c.tilt), color, 9, true)
 		for wheel in [-1, 1]:
 			var w := p + Vector2(wheel * 12, 6).rotated(c.tilt)
@@ -382,7 +383,9 @@ func _draw() -> void:
 			draw_line(p + Vector2(-8, -20), p + Vector2(8, -4), Color("ef9c86"), 2, true)
 			draw_line(p + Vector2(8, -20), p + Vector2(-8, -4), Color("ef9c86"), 2, true)
 		elif player == i:
-			draw_circle(p - Vector2(0, 35), 3, color)
+			draw_circle(p - Vector2(0, 40), 3, color)
+			if sim.tipped(i):
+				draw_string(ThemeDB.fallback_font, p + Vector2(-60, -48), "GEKIPPT · richtet sich auf", HORIZONTAL_ALIGNMENT_CENTER, 120, 13, color)
 			var meter := (power - 15.0) / 75.0
 			draw_rect(Rect2(p + Vector2(-16, 18), Vector2(32, 4)), Color("15212b"))
 			draw_rect(Rect2(p + Vector2(-16, 18), Vector2(32 * meter, 4)), color)

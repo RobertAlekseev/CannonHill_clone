@@ -32,4 +32,8 @@ Each cannon adds `hp` (0..1000), `max_hp` (1000), and `hit_flash` (seconds). Sta
 
 Only host snapshots set HP or the result. Client input still contains only angle, power and fire. Restart snapshots are complete and may move `tick` back to zero. Receivers validate the new fields before replacing state. JSON numeric decoding must accept integer-valued floats, as Godot JSON uses floats for parsed numbers.
 
-Current supported pairing: Godot v2 ↔ Godot v2. All other health pairings need a later implementation and new tests.
+Current supported pairing: Godot v3 ↔ Godot v3 (v2 is superseded). All other health pairings need a later implementation and new tests.
+
+## Godot v3: rigid-body cannons
+
+Same as v2 with `version: 3`. Each cannon additionally carries `vx` and `spin` (rad/s) and `tipped_time` (seconds lying tipped). `tilt` is now the full chassis rotation in rad, wrapped to -π..π (positive = clockwise on screen), no longer a visual value clamped to ±0.5. `angle` stays the barrel angle relative to the chassis. Clients apply the host values unchanged; only the host runs the solver from shared/physics-proposal-p1.md. Snapshots missing any of these fields are rejected.

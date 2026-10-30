@@ -4,7 +4,7 @@ Eigenständiger, assetfreier 2D-Artillerieprototyp für **Unity, Godot und Unrea
 Ziel: zwei Spieler in Echtzeit über LAN, rieselnder Sand, tragender Untergrund und ballistische Geschosse.
 Als Referenz ist jetzt **Cannonhill von Dirk Plate** identifiziert. Die belegten Waffen und Hilfsmittel stehen in [CANNONHILL_REFERENCE.md](docs/CANNONHILL_REFERENCE.md). Keine Originaldateien oder fremder Spielcode sind enthalten.
 
-**Aktueller Fokus: Godot.** Godot besitzt Lebenspunkte und Rundenergebnisse; Unity und Unreal bleiben vorerst auf dem Initialstand.
+**Aktueller Fokus: Godot.** Godot besitzt Lebenspunkte, Rundenergebnisse, kippende Starrkörper-Kanonen und Effekte; Unity und Unreal bleiben vorerst auf dem Initialstand.
 
 ## Sofort ausprobieren: Godot
 
@@ -25,6 +25,7 @@ godot --path ~/GitHub/cannonhill_clone/godot
 - Beide Kanonen starten mit **1.000 Lebenspunkten**. Direkte Treffer verursachen 200 Schaden; nahe Einschläge weniger, auch an der eigenen Kanone.
 - Bei null Lebenspunkten ist die Kanone zerstört. Die Runde endet mit Gewinner oder Unentschieden bei gleichzeitiger Zerstörung. Danach kann niemand mehr feuern.
 - **Neustart:** Welt, Lebenspunkte und Rundenergebnis zurücksetzen (offline oder beim Host).
+- **Kippphysik:** Kanonen sind Starrkörper. Sie neigen sich mit dem Gelände, rutschen in Krater, schaukeln beim Rückstoß und können umkippen. Das Rohr zielt relativ zum Chassis. Eine gekippte Kanone kann nicht feuern und richtet sich nach 3 s wieder auf. Physiklabor: `godot --path godot res://lab/tipping_lab.tscn`, Details in [physics-proposal-p1.md](shared/physics-proposal-p1.md).
 - Zum Steuern den Fokus aus dem IP-Eingabefeld nehmen (**Esc**).
 - Godot zeigt eine kurze Flugbahnvorschau, Ladebalken und Stärkeanzeige; Schuss und Einschlag haben Sound, Trümmer, Blitz und Kamerawackeln. Der Client rekonstruiert diese Effekte aus den Snapshots und zeichnet Geschosse zwischen zwei Zuständen ballistisch weiter.
 
@@ -36,7 +37,7 @@ godot --path ~/GitHub/cannonhill_clone/godot
 
 TCP-Port **28741**, maximal ein Client. Im vertrauenswürdigen LAN muss die lokale Firewall die Verbindung erlauben. Dieses Projekt verändert keine Firewallregeln. Kein Router-Portforwarding notwendig. `127.0.0.1` dient dem Test mit zwei Instanzen auf demselben Rechner.
 
-Der Host berechnet Sand, Kanonen, Geschosse und Schaden mit 30 Hz; der Client erhält maximal zehn vollständige Zustände pro Sekunde. **Godot verwendet jetzt Protokoll v2 mit Lebenspunkten und Rundenergebnis. Beide LAN-Spieler benötigen diesen Godot-Stand.** Die älteren Unity-/Unreal-Projekte bleiben auf v1; aktuelle Godot-Instanzen weisen diese Verbindungen mit Versionshinweis zurück. Die früher geprüfte Engineübergreifende Verbindung gilt ausschließlich für den Initialstand. Nachweise stehen in [VALIDATION.md](docs/VALIDATION.md). Keine Anmeldung, Internetsuche, Lobby oder automatische Wiederverbindung.
+Der Host berechnet Sand, Kanonen, Geschosse und Schaden mit 30 Hz; der Client erhält maximal zehn vollständige Zustände pro Sekunde. **Godot verwendet jetzt Protokoll v3 mit Lebenspunkten, Rundenergebnis und Starrkörper-Kanonen. Beide LAN-Spieler benötigen diesen Godot-Stand.** Die älteren Unity-/Unreal-Projekte bleiben auf v1; aktuelle Godot-Instanzen weisen diese Verbindungen mit Versionshinweis zurück. Die früher geprüfte Engineübergreifende Verbindung gilt ausschließlich für den Initialstand. Nachweise stehen in [VALIDATION.md](docs/VALIDATION.md). Keine Anmeldung, Internetsuche, Lobby oder automatische Wiederverbindung.
 
 ## Drei Engines, ein Repository
 
@@ -61,7 +62,7 @@ Unreal benötigt zusätzlich den zur gewählten Engine passenden C++-Compiler un
 - Geschosse mit Schwerkraft, Kollisions-Unterteilung, Einschlag und 0,7 Sekunden Nachladezeit.
 - Ausschließlich prozedurale Farben und Geometrie, keine Assetdownloads.
 
-Dies ist ein **gemeinsames Referenzmodell**, kein Vergleich von Unity Physics, Godot Physics und Unreal Chaos. Kanonen kippen und rollen noch nicht frei, Sand übt keinen realistischen Druck aus. Godot modelliert nun Schaden; Unity und Unreal noch nicht. Unterschiede bei Gleitkommazahlen sind möglich, weshalb nur der Host simuliert. Die grafische Darstellung ist absichtlich klein gehalten; Beleuchtung, Partikel und höherwertige Grafik folgen später.
+Dies ist ein **gemeinsames Referenzmodell**, kein Vergleich von Unity Physics, Godot Physics und Unreal Chaos. In Godot kippen und rutschen Kanonen als Starrkörper (eigener Solver, kein natives Physiksystem); Unity und Unreal nutzen noch die Radstützpunkte aus v1. Sand übt keinen realistischen Druck aus. Godot modelliert nun Schaden; Unity und Unreal noch nicht. Unterschiede bei Gleitkommazahlen sind möglich, weshalb nur der Host simuliert. Die grafische Darstellung ist absichtlich klein gehalten; Beleuchtung, Partikel und höherwertige Grafik folgen später.
 
 ## Gemeinsam entwickeln
 
@@ -85,6 +86,10 @@ godot --headless --path godot --script res://tests/smoke.gd
 
 ```bash
 tools/test-lan.sh
+```
+
+```bash
+godot --headless --path godot --script res://tests/rigid_cannon_test.gd
 ```
 
 Windows:

@@ -97,6 +97,7 @@ func test_health() -> void:
 	s.input_player(0, 45, 55, true)
 	s.input_player(1, 45, 55, true)
 	check(s.shots.is_empty(), "neither player can fire after round ends")
+	rigid_body_checks()
 	var snapshot: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
 	var clone = Sim.new()
 	check(clone.apply_snapshot(snapshot) and clone.round_over and clone.winner == 0 and clone.cannons[1].hp == 0, "wire snapshot preserves health and terminal round state")
@@ -120,3 +121,42 @@ func test_health() -> void:
 	check(not s.round_over and s.winner == -1 and s.cannons[0].hp == 1000 and s.cannons[1].hp == 1000, "restart restores health and clears round result")
 	s.input_player(0, 45, 55, true)
 	check(s.shots.size() == 1, "new round permits firing again")
+
+## v3: rigid-body cannons inside the real game simulation.
+func rigid_body_checks() -> void:
+	var s = Sim.new()
+	for i in 90: s.step()
+	var c: Dictionary = s.cannons[0]
+	var rest := Vector2(c.x, c.y)
+	var rest_tilt: float = c.tilt
+	for i in 60: s.step()
+	check(Vector2(c.x, c.y).distance_to(rest) < 0.1 and absf(c.tilt - rest_tilt) < 0.01, "rigid cannon rests on the start terrain")
+	check(absf(rest_tilt) > 0.1, "rigid cannon follows the sloped start position")
+	var level: Vector2 = s.barrel(0, 45.0)
+	check(absf(level.angle() - (Sim.aim(0, 45.0).angle() + c.tilt)) < 0.001, "barrel aims relative to the tilted chassis")
+	s.input_player(0, 45, 90, true)
+	var peak := 0.0
+	for i in 30:
+		s.step()
+		peak = maxf(peak, absf(c.tilt - rest_tilt))
+	check(peak > 0.005 and not s.tipped(0), "recoil rocks the cannon without tipping it")
+	s.cannons[1].tilt = PI
+	s.cannons[1].cooldown = 0.0
+	s.input_player(1, 45, 55, true)
+	check(s.shots.filter(func(shot): return shot.vx < 0.0).is_empty(), "a tipped cannon cannot fire")
+	for i in int(Sim.RIGHTING_TIME / Sim.DT) + 30: s.step()
+	check(not s.tipped(1) and absf(s.cannons[1].tilt) < 0.6, "a tipped cannon rights itself after a while")
+	s.reset()
+	for i in 60: s.step()
+	c = s.cannons[0]
+	var before: Vector2 = Vector2(c.x, c.y)
+	var tilt_before: float = c.tilt
+	s.crater(c.x + 6, c.y + 6, 7)
+	for i in 90: s.step()
+	check(c.y > before.y + 1.0 and c.tilt > tilt_before + 0.1, "one-sided undermining tilts the cannon into the hole")
+	var wire: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
+	var replica = Sim.new()
+	check(wire.version == 3 and replica.apply_snapshot(wire) and is_equal_approx(replica.cannons[0].tilt, c.tilt) and replica.cannons[0].has("spin"), "v3 snapshot carries rigid-body state")
+	var broken := wire.duplicate(true)
+	broken.cannons[0].erase("spin")
+	check(not replica.apply_snapshot(broken), "snapshot without rigid-body fields is rejected")

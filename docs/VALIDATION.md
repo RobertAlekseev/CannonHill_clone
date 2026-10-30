@@ -2,6 +2,16 @@
 
 Stand: 30.10.2026, Windows und macOS (Godot 4.7.2).
 
+## Integration G3 + G4 + P1, Godot v3 (macOS)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `tests/smoke.gd`, 44 Simulationsprüfungen | Bestanden: Sand, Ballistik, Effekte, Lebenspunkte und neu: Ruhe am Hang, Rohr relativ zum Chassis, Rückstoß schaukelt ohne Kippen, gekippt keine Schüsse, Aufrichten nach 3 s, einseitige Untergrabung kippt ins Loch, v3-Snapshot mit Starrkörperfeldern |
+| `tests/rigid_cannon_test.gd`, 19 Prüfungen | Bestanden (Hang, einseitiger und vollständiger Bodenverlust, Kante, Fall, Rückstoß, Sand, Snapshot) |
+| `tools/test-lan.sh` | Beide Paare bestanden: Szenen-Smoke mit Effekten beim Client; Gesundheits-TCP-Test 1000→0 LP, Gewinner, Neustart |
+| Szene und Labor | Smoke-Läufe bestanden; Screenshot `docs/images/godot-v3-tilt.png` angesehen |
+| Windows-Skripte (`*.ps1`) | Nicht ausgeführt (macOS) |
+
 ## Godot-Effekte G4 (macOS)
 
 | Prüfung | Ergebnis |
@@ -24,7 +34,7 @@ Stand: 30.10.2026, Windows und macOS (Godot 4.7.2).
 | Visuelle Kontrolle | Vorher-, Schadens- und Sieger-Screenshots angesehen; HUD und Welt ohne Überlagerung |
 | Unity und Unreal | In diesem Schritt unverändert; keine Gesundheitsparität behauptet |
 
-Godot nutzt jetzt Protokoll v2. Die nachfolgenden Engineübergreifenden Tests belegen **nur den Initialstand mit v1**, nicht Kompatibilität der aktuellen Godot-Erweiterung.
+Godot nutzt inzwischen Protokoll v3 (v2 plus Starrkörper). Die nachfolgenden Engineübergreifenden Tests belegen **nur den Initialstand mit v1**, nicht Kompatibilität der aktuellen Godot-Erweiterung.
 
 Lokale neue Nachweise: `reports/godot-health-tests.log`, `health-lan-{host,client}.log`, `godot-health-scene.log`, `godot-victory-scene.log` und `godot-health-{before,after,victory}.png`. Zwei kleine geprüfte Ergebnisbilder liegen unter `docs/images/`. Echte Tastatur-/Mausbedienung auf zwei physischen Rechnern und Langzeittest bleiben offen.
 

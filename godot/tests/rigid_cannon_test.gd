@@ -2,7 +2,7 @@ extends SceneTree
 ## P1 acceptance cases for lab/rigid_cannon.gd on static and sand terrain.
 ## godot --headless --path godot --script res://tests/rigid_cannon_test.gd
 const Sim = preload("res://simulation.gd")
-const Rigid = preload("res://lab/rigid_cannon.gd")
+const Rigid = preload("res://rigid_cannon.gd")
 var failures := 0
 
 func check(condition: bool, description: String) -> void:

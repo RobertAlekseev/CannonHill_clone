@@ -1,6 +1,6 @@
 # P1-Vorschlag: Kanone als freier Starrkörper
 
-Status: **Vorschlag mit Godot-Referenz und Tests**, noch nicht Teil von Spezifikation v1 oder Protokoll v1. Bezug: Issue 3, `TODO.md` P1.
+Status: **In Godot integriert (Protokoll v3)**, Unity/Unreal noch auf v1. Bezug: Issue 3, `TODO.md` P1.
 
 ## Entscheidung: eigener Solver statt nativer Enginephysik
 
@@ -15,7 +15,7 @@ Native Physik bleibt für spätere, rein grafische Effekte möglich (Trümmer us
 
 ## Modell
 
-Referenz: `godot/lab/rigid_cannon.gd`. Einheiten wie Spezifikation v1: Zellen, Sekunden, y nach unten. Winkel in rad, positiv im Uhrzeigersinn auf dem Bildschirm.
+Referenz: `godot/rigid_cannon.gd`. Einheiten wie Spezifikation v1: Zellen, Sekunden, y nach unten. Winkel in rad, positiv im Uhrzeigersinn auf dem Bildschirm.
 
 - **Körper:** Masse 1, Chassis 8 × 4 Zellen, Trägheitsmoment `m(8² + 4²)/12`. Zustand: `x, y, vx, vy, angle, spin, brake`.
 - **Kontaktpunkte im Körpersystem:** Räder `(±3, 3)`, entspricht der Auflage aus v1. Rumpf `(±4, 1)`, `(±4, −2)`, `(0, −2)`. Der Rumpf berührt den Boden erst bei starker Neigung, auf der Seite oder auf dem Dach.
@@ -64,11 +64,11 @@ Ergebnis des Laufs: links +0,73 rad, bleibt aufrecht in der untergrabenen Mulde 
 
 Hostautoritativ wie bisher: Nur der Host rechnet den Starrkörper. Ein späteres Protokoll ersetzt pro Kanone `vy`/`tilt` durch `x, y, vx, vy, angle, spin, brake`. Das liefert `RigidCannon.snapshot()`, etwa 100 Byte pro Kanone. Clients übernehmen den Zustand unverändert. Der Snapshot-Test zeigt, dass ein übernommener Zustand identisch weiterläuft. Gleitkommaabweichungen zwischen Engines bleiben daher folgenlos.
 
-Die Protokollnummer ist noch zu klären: Draft-PR 5 belegt bereits „v2“ für Gesundheit. Die Integration erfolgt in einer eigenen Aufgabe, nachdem dieser Vorschlag angenommen ist.
+Umgesetzt als Godot-Protokoll v3 (aufbauend auf v2 mit Gesundheit), siehe `network-protocol.md`.
 
 ## Offene Punkte für die Integration
 
-1. `simulation.gd`: `cannons` durch `RigidCannon` ersetzen, Rückstoß in `input_player`, Rohrwinkel relativ zum Chassis. Erst nach Abschluss von PR 5/6, um Konflikte zu vermeiden.
-2. Spielregel: Darf eine gekippte Kanone schießen? Vorschlag: nein, nach 3 s richtet sie sich auf, oder die Runde ist verloren.
+1. ~~`simulation.gd` integrieren~~ erledigt: Rückstoß, Rohr relativ zum Chassis.
+2. ~~Gekippte Kanone~~ erledigt: schießt nicht, richtet sich nach 3 s auf.
 3. Unity- und Unreal-Port mit denselben Testfällen.
 4. Optional: Kanone verdrängt Sand (Druck), Räder als Kreise statt Punkte.

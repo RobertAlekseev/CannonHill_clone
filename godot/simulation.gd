@@ -5,7 +5,13 @@ const W := 240
 const H := 128
 const DT := 1.0 / 30.0
 const GRAVITY := 39.24
-const PROTOCOL_VERSION := 2
+## v3: v2 health plus rigid-body cannons (shared/physics-proposal-p1.md).
+const PROTOCOL_VERSION := 3
+const Rigid = preload("res://rigid_cannon.gd")
+## Recoil impulse per unit of shot speed; 55 cells/s rocks the cannon back.
+const RECOIL := 0.03
+## A cannon on its side or roof cannot fire and rights itself after this time.
+const RIGHTING_TIME := 3.0
 const MAX_HP := 1000
 const SHOT_DAMAGE := 200
 const BLAST_RADIUS := 14.0
@@ -33,9 +39,9 @@ func reset() -> void:
 			cells[y * W + x] = 2 if y >= H - 4 else 1
 	cannons = []
 	for x in [40.0, 200.0]:
-		cannons.append({"x": x, "y": float(surface_at(int(x))) - 3.0, "vy": 0.0,
-			"angle": 45.0, "power": 55.0, "cooldown": 0.0, "tilt": 0.0,
-			"hp": MAX_HP, "max_hp": MAX_HP, "hit_flash": 0.0})
+		cannons.append({"x": x, "y": float(surface_at(int(x))) - 3.0, "vx": 0.0, "vy": 0.0,
+			"angle": 45.0, "power": 55.0, "cooldown": 0.0, "tilt": 0.0, "spin": 0.0,
+			"tipped_time": 0.0, "hp": MAX_HP, "max_hp": MAX_HP, "hit_flash": 0.0})
 	shots.clear()
 	events.clear()
 	tick = 0
@@ -60,20 +66,49 @@ func input_player(player: int, angle: float, power: float, fire: bool) -> void:
 	if round_over or c.hp <= 0: return
 	c.angle = clampf(angle, 5.0, 85.0)
 	c.power = clampf(power, 15.0, 90.0)
-	if fire and c.cooldown <= 0.0 and shots.size() < 32:
-		var direction := aim(player, c.angle)
+	if fire and c.cooldown <= 0.0 and shots.size() < 32 and not tipped(player):
+		var direction := barrel(player)
 		var pos := muzzle(player)
 		shots.append({"x": pos.x, "y": pos.y, "vx": direction.x * c.power,
 			"vy": direction.y * c.power, "age": 0.0})
 		c.cooldown = 0.7
+		var body := body_of(c)
+		body.apply_impulse(pos, -direction * c.power * RECOIL)
+		store(body, c)
 		events.append({"type": "fire", "player": player, "x": pos.x, "y": pos.y})
 
+## Barrel direction relative to the chassis (5..85 degrees, pointing inwards).
 static func aim(player: int, angle: float) -> Vector2:
 	return Vector2(cos(deg_to_rad(angle)) * (1.0 if player == 0 else -1.0), -sin(deg_to_rad(angle)))
 
+## World direction of the barrel: the aim turns with the tilted chassis.
+func barrel(player: int, angle: float = NAN) -> Vector2:
+	var c: Dictionary = cannons[player]
+	return aim(player, c.angle if is_nan(angle) else angle).rotated(c.tilt)
+
+## Barrel pivot two cells above the body centre, muzzle seven cells further.
 func muzzle(player: int, angle: float = NAN) -> Vector2:
 	var c: Dictionary = cannons[player]
-	return Vector2(c.x, c.y - 1.0) + aim(player, c.angle if is_nan(angle) else angle) * 7.0
+	return Vector2(c.x, c.y) + Vector2(0, -2).rotated(c.tilt) + barrel(player, angle) * 7.0
+
+func tipped(player: int) -> bool:
+	return absf(wrapf(float(cannons[player].tilt), -PI, PI)) > PI / 2.0
+
+## The dictionary is the wire format; the solver works on a RigidCannon copy.
+static func body_of(c: Dictionary) -> RigidCannon:
+	var body := Rigid.new(Vector2(c.x, c.y))
+	body.vel = Vector2(c.vx, c.vy)
+	body.angle = c.tilt
+	body.spin = c.spin
+	return body
+
+static func store(body: RigidCannon, c: Dictionary) -> void:
+	c.x = clampf(body.pos.x, 4.0, W - 4.0)
+	c.y = minf(body.pos.y, H - 7.0)
+	c.vx = body.vel.x if c.x == body.pos.x else 0.0
+	c.vy = body.vel.y
+	c.tilt = wrapf(body.angle, -PI, PI)
+	c.spin = body.spin
 
 ## Same integration as step() without changing the world. Returns one point per
 ## tick; when the flight ends in the ground, the last point is the hit position.
@@ -94,7 +129,7 @@ func march(pos: Vector2, vel: Vector2, max_ticks: int) -> Dictionary:
 
 func trajectory(player: int, angle: float, power: float, max_ticks: int = 90) -> Dictionary:
 	var clamped := clampf(angle, 5.0, 85.0)
-	return march(muzzle(player, clamped), aim(player, clamped) * clampf(power, 15.0, 90.0), max_ticks)
+	return march(muzzle(player, clamped), barrel(player, clamped) * clampf(power, 15.0, 90.0), max_ticks)
 
 func cannon_at(pos: Vector2) -> int:
 	for i in cannons.size():
@@ -160,20 +195,17 @@ func step() -> void:
 	for c in cannons:
 		c.hit_flash = maxf(0.0, c.hit_flash - DT)
 		c.cooldown = maxf(0.0, c.cooldown - DT)
-		c.vy += GRAVITY * DT
-		var target_y: float = minf(H - 7.0, c.y + c.vy * DT)
-		# Two wheel probes: a supported wheel carries the simplified chassis.
-		var left := H
-		var right := H
-		for y in range(maxi(0, int(c.y + 2)), H):
-			if left == H and solid(int(c.x) - 3, y): left = y
-			if right == H and solid(int(c.x) + 3, y): right = y
-		var floor_y := float(mini(left, right)) - 3.0
-		if target_y >= floor_y:
-			target_y = floor_y
-			c.vy = 0.0
-		c.y = target_y
-		c.tilt = clampf(atan2(float(right - left), 6.0), -0.5, 0.5)
+		var body := body_of(c)
+		body.step(self, DT)
+		store(body, c)
+		# Lying on its side or roof: after a while the crew rights the cannon.
+		c.tipped_time = c.tipped_time + DT if absf(c.tilt) > PI / 2.0 else 0.0
+		if c.tipped_time >= RIGHTING_TIME and c.hp > 0:
+			c.tilt = 0.0
+			c.spin = 0.0
+			c.vx = 0.0
+			c.y = minf(c.y, float(surface_at(int(c.x))) - 3.0)
+			c.tipped_time = 0.0
 	if round_over: return
 	for i in range(shots.size() - 1, -1, -1):
 		var shot: Dictionary = shots[i]
@@ -214,7 +246,7 @@ func apply_snapshot(state: Dictionary) -> bool:
 	if state.winner != int(state.winner) or int(state.winner) < -1 or int(state.winner) > 1: return false
 	for c in next_cannons:
 		if not c is Dictionary: return false
-		for key in ["x", "y", "vy", "angle", "power", "cooldown", "tilt", "hp", "max_hp", "hit_flash"]:
+		for key in ["x", "y", "vx", "vy", "angle", "power", "cooldown", "tilt", "spin", "tipped_time", "hp", "max_hp", "hit_flash"]:
 			if not numeric(c.get(key)): return false
 		if c.hp < 0 or c.hp > MAX_HP or c.max_hp != MAX_HP: return false
 	for shot in next_shots:
