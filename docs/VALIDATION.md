@@ -2,6 +2,14 @@
 
 Stand: 30.10.2026, Windows und macOS (Godot 4.7.2).
 
+## Waffen G5, Godot v4 (macOS)
+
+| Prüfung | Ergebnis |
+|---|---|
+| `tests/smoke.gd`, 65 Prüfungen | Bestanden, neu: Standardwaffe, Munition, ungültige Wahl, Raketenschub samt Vorschau, Granate prallt ab und zündet nach 2,5 s, Mega teilt sich in 6 Splitter mit 6 Einschlägen, Schneeball baut Sand ohne Schaden, Medipack, Schild über zwei Treffer, Snapshot mit Waffen/Munition/Schild/Geschossart, Ereignisprotokoll begrenzt, ungültige Waffe und Ereignistyp abgewiesen |
+| `tools/test-lan.sh` | Drei Paare bestanden; neu: beide wählen Mega über TCP, Client spielt 2 Splits und 12 Einschläge exakt nach |
+| Szene je Waffe 1–7 | Smoke-Läufe bestanden; Screenshots Granate und Mega angesehen (`docs/images/godot-weapons-mega.png`) |
+
 ## Integration G3 + G4 + P1, Godot v3 (macOS)
 
 | Prüfung | Ergebnis |

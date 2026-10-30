@@ -98,6 +98,7 @@ func test_health() -> void:
 	s.input_player(1, 45, 55, true)
 	check(s.shots.is_empty(), "neither player can fire after round ends")
 	rigid_body_checks()
+	weapon_checks()
 	var snapshot: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
 	var clone = Sim.new()
 	check(clone.apply_snapshot(snapshot) and clone.round_over and clone.winner == 0 and clone.cannons[1].hp == 0, "wire snapshot preserves health and terminal round state")
@@ -156,7 +157,100 @@ func rigid_body_checks() -> void:
 	check(c.y > before.y + 1.0 and c.tilt > tilt_before + 0.1, "one-sided undermining tilts the cannon into the hole")
 	var wire: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
 	var replica = Sim.new()
-	check(wire.version == 3 and replica.apply_snapshot(wire) and is_equal_approx(replica.cannons[0].tilt, c.tilt) and replica.cannons[0].has("spin"), "v3 snapshot carries rigid-body state")
+	check(wire.version == Sim.PROTOCOL_VERSION and replica.apply_snapshot(wire) and is_equal_approx(replica.cannons[0].tilt, c.tilt) and replica.cannons[0].has("spin"), "snapshot carries rigid-body state")
 	var broken := wire.duplicate(true)
 	broken.cannons[0].erase("spin")
 	check(not replica.apply_snapshot(broken), "snapshot without rigid-body fields is rejected")
+
+## v4: weapons, ammo, helpers and the replicated event log.
+func fire_with(s, player: int, kind: int, angle := 45.0, power := 55.0) -> void:
+	s.cannons[player].cooldown = 0.0
+	s.input_player(player, angle, power, true, kind)
+
+func weapon_checks() -> void:
+	var s = Sim.new()
+	for i in 60: s.step()
+	check(s.cannons[0].weapon == Sim.STONE and s.cannons[0].ammo[Sim.STONE] == -1, "stone is the default with unlimited ammo")
+	fire_with(s, 0, Sim.ROCKET)
+	fire_with(s, 0, Sim.ROCKET)
+	fire_with(s, 0, Sim.ROCKET)
+	check(s.shots.size() == 2 and s.cannons[0].ammo[Sim.ROCKET] == 0, "rockets are limited to two per round")
+	s.input_player(0, 45, 55, false, 99)
+	check(s.cannons[0].weapon == Sim.ROCKET, "invalid weapon index is ignored")
+	# Rocket vs stone from the same cannon and aim: thrust makes it faster.
+	var a = Sim.new()
+	var b = Sim.new()
+	fire_with(a, 0, Sim.ROCKET, 60, 50)
+	fire_with(b, 0, Sim.STONE, 60, 50)
+	for i in 12:
+		a.step()
+		b.step()
+	check(Vector2(a.shots[0].vx, a.shots[0].vy).length() > Vector2(b.shots[0].vx, b.shots[0].vy).length() + 15.0, "rocket thrust accelerates the shot")
+	var r = Sim.new()
+	var preview: Dictionary = r.trajectory(1, 65, 35, 400, Sim.ROCKET)
+	fire_with(r, 1, Sim.ROCKET, 65, 35)
+	for i in 400:
+		if r.shots.is_empty(): break
+		r.step()
+	var landing: Vector2 = preview.points[-1]
+	var hits: Array = r.events.filter(func(e): return e.type == "impact")
+	check(preview.hit and hits.size() == 1 and landing.distance_to(Vector2(hits[0].x, hits[0].y)) < 1.0, "rocket preview includes the thrust")
+	# Grenade: bounces on the ground and only explodes when the fuse burns down.
+	s = Sim.new()
+	for i in 60: s.step()
+	fire_with(s, 0, Sim.GRENADE, 50, 40)
+	var touched := -1
+	var exploded := -1
+	for i in 150:
+		s.step()
+		if touched < 0 and not s.shots.is_empty() and s.events[-1].type == "fire" and s.shots[0].vy <= 0.0 and s.shots[0].age > 0.3: touched = i
+		if exploded < 0 and s.impacts > 0: exploded = i
+	check(touched >= 0 and exploded > touched, "grenade bounces before it explodes")
+	check(absf(exploded * Sim.DT - Sim.WEAPONS[Sim.GRENADE].fuse) < 0.1, "grenade explodes after its fuse time")
+	check(s.cannons[0].ammo[Sim.GRENADE] == 2, "grenade ammo is consumed")
+	# Mega: splits at the apex into six splinters, each with its own crater.
+	s = Sim.new()
+	fire_with(s, 0, Sim.MEGA, 60, 60)
+	var most := 0
+	for i in 240:
+		s.step()
+		most = maxi(most, s.shots.size())
+	check(most == 6 and s.events.filter(func(e): return e.type == "split").size() == 1, "mega splits into six splinters")
+	check(s.impacts == 6, "every splinter explodes")
+	# Snowball: adds sand, no damage.
+	s = Sim.new()
+	var sand: int = s.cells.count(1)
+	fire_with(s, 0, Sim.SNOWBALL)
+	for i in 150: s.step()
+	check(s.cells.count(1) > sand + 50 and s.cannons[1].hp == Sim.MAX_HP and s.events[-1].type == "snow", "snowball builds sand without damage")
+	# Medipack heals up to the maximum; shield absorbs before HP.
+	s = Sim.new()
+	s.cannons[0].hp = 500
+	fire_with(s, 0, Sim.MEDIPACK)
+	check(s.cannons[0].hp == 800 and s.shots.is_empty() and s.cannons[0].ammo[Sim.MEDIPACK] == 0, "medipack heals 300 without a projectile")
+	fire_with(s, 0, Sim.MEDIPACK)
+	check(s.cannons[0].hp == 800, "medipack cannot be used twice")
+	fire_with(s, 1, Sim.SHIELD)
+	s.explode(s.cannons[1].x, s.cannons[1].y, 1)
+	check(s.cannons[1].hp == Sim.MAX_HP and s.cannons[1].shield == 200, "shield absorbs a direct hit")
+	s.explode(s.cannons[1].x, s.cannons[1].y, 1)
+	check(s.cannons[1].hp == Sim.MAX_HP and s.cannons[1].shield == 0, "shield absorbs the second hit as well")
+	s.explode(s.cannons[1].x, s.cannons[1].y, 1)
+	check(s.cannons[1].hp == 800 and s.cannons[1].shield == 0, "after the shield is gone HP takes damage")
+	# Wire format: weapons, ammo, shield, shot kinds and a bounded event log.
+	s = Sim.new()
+	fire_with(s, 0, Sim.GRENADE)
+	fire_with(s, 1, Sim.SHIELD)
+	for i in 40: s.step()
+	var wire: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
+	var replica = Sim.new()
+	check(replica.apply_snapshot(wire) and replica.cannons[0].ammo[Sim.GRENADE] == 2 and replica.cannons[1].shield == 400 and replica.shots[0].kind is int, "snapshot carries weapons, ammo, shields and shot kinds")
+	check(replica.events.size() == 2 and replica.events[-1].id is int, "snapshot replays the event log with ids")
+	for i in 40: s.emit({"type": "fire", "x": 0.0, "y": 0.0})
+	check(s.snapshot().log.size() == Sim.EVENT_LOG, "event log in the snapshot is bounded")
+	var broken := wire.duplicate(true)
+	broken.cannons[0].weapon = 9
+	check(not replica.apply_snapshot(broken), "snapshot with an unknown weapon is rejected")
+	broken = wire.duplicate(true)
+	broken.log[0].type = "evil"
+	check(not replica.apply_snapshot(broken), "snapshot with an unknown event type is rejected")

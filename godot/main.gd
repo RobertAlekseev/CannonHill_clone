@@ -35,7 +35,12 @@ var debris: Array[Dictionary] = []
 var flashes: Array[Dictionary] = []
 var shake := 0.0
 var since_state := 0.0
-var effect_counts := {"fire": 0, "impact": 0}
+var effect_counts := {"fire": 0, "impact": 0, "snow": 0, "heal": 0, "shield": 0, "split": 0}
+## Highest event id already turned into effects (host and client alike).
+var last_event := 0
+var weapon := Sim.STONE
+var weapon_pending := false
+var smoke_weapon := Sim.STONE
 
 func _ready() -> void:
 	texture = ImageTexture.create_from_image(image)
@@ -57,6 +62,7 @@ func _ready() -> void:
 		elif arg == "--smoke": auto_smoke = true
 		elif arg.begins_with("--capture="): capture_path = arg.trim_prefix("--capture=")
 		elif arg.begins_with("--capture-at="): capture_tick = int(arg.trim_prefix("--capture-at="))
+		elif arg.begins_with("--weapon="): smoke_weapon = clampi(int(arg.trim_prefix("--weapon=")), 0, Sim.SELECTABLE - 1)
 	paint_terrain()
 
 func make_ui() -> void:
@@ -67,7 +73,7 @@ func make_ui() -> void:
 	title.modulate = Color("f4d59a")
 	add_child(title)
 	var subtitle := Label.new()
-	subtitle.text = "GODOT  /  03     Echtzeit-Artillerie · Lebenspunkte · Kippphysik · LAN für zwei"
+	subtitle.text = "GODOT  /  04     Echtzeit-Artillerie · Waffen · Lebenspunkte · Kippphysik · LAN für zwei"
 	subtitle.position = Vector2(38, 58)
 	subtitle.modulate = Color("8ca9b9")
 	add_child(subtitle)
@@ -100,7 +106,7 @@ func make_ui() -> void:
 	round_label.modulate = Color("f4d59a")
 	add_child(round_label)
 	var help := Label.new()
-	help.text = "↑ ↓ Winkel     ← → Stärke     LEERTASTE Feuer     TAB Spieler (offline)     |     Fels trägt · Sand rieselt"
+	help.text = "↑ ↓ Winkel     ← → Stärke     LEERTASTE Feuer     1–7 / Q E Waffe     TAB Spieler (offline)     ESC verlässt IP-Feld"
 	help.position = Vector2(38, 824)
 	help.add_theme_font_size_override("font_size", 14)
 	help.modulate = Color("8ca9b9")
@@ -194,11 +200,20 @@ func network() -> void:
 			outgoing.clear()
 			return
 		if mode == "host" and data.get("type") == "input":
-			sim.input_player(1, float(data.get("angle", 45)), float(data.get("power", 55)), data.get("fire") == true)
+			var wanted = data.get("weapon", -1)
+			sim.input_player(1, float(data.get("angle", 45)), float(data.get("power", 55)), data.get("fire") == true,
+				int(wanted) if (wanted is int or wanted is float) and is_finite(float(wanted)) else -1)
 		elif mode == "client" and data.get("type") == "state":
-			var derived := derive_events(data)
+			var first := last_event == 0
 			if sim.apply_snapshot(data):
-				sim.events.append_array(derived)
+				# Joining mid-game or after a host restart: replay only the last
+				# half second, older events would show stale explosions.
+				var newest := 0
+				for event in sim.events: newest = maxi(newest, event.id)
+				if first or newest < last_event:
+					last_event = 0
+					for event in sim.events:
+						if event.tick < sim.tick - 15: last_event = maxi(last_event, event.id)
 				since_state = 0.0
 				status = "LAN / Spieler 2 / Host-Tick %d" % sim.tick
 				if sim.tick % 30 < 3: print("STATE_RECEIVED tick=%d impacts=%d hp0=%d hp1=%d over=%s winner=%d" % [sim.tick, sim.impacts, sim.cannons[0].hp, sim.cannons[1].hp, sim.round_over, sim.winner])
@@ -207,10 +222,19 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_SPACE: fire_pending = true
 		if event.keycode == KEY_ESCAPE: ip_field.release_focus()
+		if ip_field.has_focus(): return
+		if event.keycode >= KEY_1 and event.keycode < KEY_1 + Sim.SELECTABLE: select_weapon(event.keycode - KEY_1)
+		if event.keycode == KEY_Q: select_weapon(posmod(weapon - 1, Sim.SELECTABLE))
+		if event.keycode == KEY_E: select_weapon(posmod(weapon + 1, Sim.SELECTABLE))
 		if event.keycode == KEY_TAB and mode == "offline":
 			player = 1 - player
 			angle = sim.cannons[player].angle
 			power = sim.cannons[player].power
+			weapon = sim.cannons[player].weapon
+
+func select_weapon(index: int) -> void:
+	weapon = index
+	weapon_pending = true
 
 func _process(delta: float) -> void:
 	network()
@@ -221,15 +245,17 @@ func _process(delta: float) -> void:
 	while accumulator >= Sim.DT:
 		accumulator -= Sim.DT
 		if mode != "client":
-			sim.input_player(player, angle, power, fire_pending)
+			sim.input_player(player, angle, power, fire_pending, weapon)
 			sim.step()
 			fire_pending = false
 		if auto_smoke:
 			smoke_ticks += 1
+			if smoke_ticks == 20: select_weapon(smoke_weapon)
 			if smoke_ticks == 30: fire_pending = true
 			if smoke_ticks == capture_tick and not capture_path.is_empty(): capture.call_deferred()
 			if smoke_ticks == 200:
-				print("EFFECTS fire=%d impact=%d" % [effect_counts.fire, effect_counts.impact])
+				print("EFFECTS fire=%d impact=%d snow=%d heal=%d shield=%d split=%d" % [effect_counts.fire, effect_counts.impact,
+					effect_counts.snow, effect_counts.heal, effect_counts.shield, effect_counts.split])
 				print("SMOKE_FINISHED tick=%d impacts=%d hp0=%d hp1=%d" % [sim.tick, sim.impacts, sim.cannons[0].hp, sim.cannons[1].hp])
 				get_tree().quit(0)
 	since_state += delta
@@ -240,55 +266,37 @@ func _process(delta: float) -> void:
 		if mode == "host": send(sim.snapshot())
 		elif mode == "client" and peer:
 			if outgoing.is_empty():
-				send({"type": "input", "version": Sim.PROTOCOL_VERSION, "angle": angle, "power": power, "fire": fire_pending})
+				send({"type": "input", "version": Sim.PROTOCOL_VERSION, "angle": angle, "power": power, "fire": fire_pending, "weapon": weapon})
 				fire_pending = false
+				weapon_pending = false
 	paint_terrain()
 	status_label.text = status
-	values_label.text = "SPIELER %d     WINKEL %02d°     STÄRKE %02d     |     EINSCHLÄGE %d     SAND IN BEWEGUNG %d" % [player + 1, angle, power, sim.impacts, sim.moved]
+	values_label.text = "SPIELER %d     WINKEL %02d°     STÄRKE %02d     |     %s     |     EINSCHLÄGE %d" % [player + 1, angle, power, weapon_text(), sim.impacts]
 	if sim.round_over:
 		round_label.text = ("UNENTSCHIEDEN" if sim.winner == -1 else "SPIELER %d GEWINNT" % (sim.winner + 1)) + "\nNeustart für nächste Runde"
 	else:
-		round_label.text = "STANDARDGESCHOSS\n200 max. Schaden"
+		round_label.text = "%s\n%s" % [Sim.WEAPONS[weapon].name.to_upper(), weapon_hint(weapon)]
 	queue_redraw()
 
-## Clients only receive snapshots, so fire and impact effects are reconstructed
-## from the previous and the next state: matched shots age by the elapsed ticks,
-## new young shots were fired, and vanished shots are marched into the old terrain.
-func derive_events(data: Dictionary) -> Array[Dictionary]:
-	var found: Array[Dictionary] = []
-	var elapsed := maxi(1, int(data.get("tick", sim.tick)) - sim.tick) * Sim.DT
-	var matched := {}
-	for shot in data.get("shots", []):
-		if not shot is Dictionary: continue
-		var age := float(shot.get("age", 0.0))
-		var previous := -1
-		for i in sim.shots.size():
-			if not matched.has(i) and absf(float(sim.shots[i].age) + elapsed - age) < Sim.DT * 0.5:
-				previous = i
-				break
-		if previous >= 0:
-			matched[previous] = true
-		elif age <= elapsed + Sim.DT * 0.5:
-			var shooter := 0 if absf(float(shot.get("x", 0)) - sim.cannons[0].x) < absf(float(shot.get("x", 0)) - sim.cannons[1].x) else 1
-			var pos: Vector2 = sim.muzzle(shooter)
-			found.append({"type": "fire", "player": shooter, "x": pos.x, "y": pos.y})
-	var budget: int = int(data.get("impacts", sim.impacts)) - sim.impacts
-	for i in sim.shots.size():
-		if budget <= 0: break
-		if matched.has(i): continue
-		var s: Dictionary = sim.shots[i]
-		var flight: Dictionary = sim.march(Vector2(s.x, s.y), Vector2(s.vx, s.vy), int(elapsed / Sim.DT) + 2)
-		if flight.hit:
-			var hit: Vector2 = flight.points[-1]
-			found.append({"type": "impact", "x": hit.x, "y": hit.y})
-			budget -= 1
-	return found
+func weapon_text() -> String:
+	var ammo: int = sim.cannons[player].ammo[weapon]
+	return "WAFFE %d %s (%s)" % [weapon + 1, Sim.WEAPONS[weapon].name.to_upper(), "∞" if ammo < 0 else str(ammo)]
+
+func weapon_hint(index: int) -> String:
+	var w: Dictionary = Sim.WEAPONS[index]
+	if w.has("heal"): return "+%d LP" % w.heal
+	if w.has("shield"): return "fängt %d Schaden ab" % w.shield
+	if w.has("fill"): return "baut Sand auf"
+	if w.has("fragments"): return "%d Splitter am Scheitel" % w.fragments
+	if w.has("fuse"): return "prallt ab · Zünder %.1f s" % w.fuse
+	return "%d max. Schaden" % w.damage
 
 func update_effects(delta: float) -> void:
 	for event in sim.events:
+		if event.id <= last_event: continue
+		last_event = event.id
 		spawn_effect(event)
 		if auto_smoke: print("EFFECT %s tick=%d" % [event.type, sim.tick])
-	sim.events.clear()
 	shake = maxf(0.0, shake - delta * 25.0)
 	for i in range(debris.size() - 1, -1, -1):
 		var d: Dictionary = debris[i]
@@ -304,17 +312,31 @@ func update_effects(delta: float) -> void:
 func spawn_effect(event: Dictionary) -> void:
 	effect_counts[event.type] += 1
 	var pos := Vector2(event.x, event.y)
-	if event.type == "fire":
-		flashes.append({"pos": pos, "life": 0.14, "max": 0.14, "radius": 3.0, "color": Color("fff4d6")})
-		play("audio.fire")
-		return
-	shake = 7.0
-	flashes.append({"pos": pos, "life": 0.35, "max": 0.35, "radius": 11.0, "color": Color("ffb36b")})
-	for i in 40:
-		var grain := randf() * 0.12
-		debris.append({"pos": pos, "vel": Vector2.from_angle(randf_range(PI * 1.05, TAU * 0.98)) * randf_range(8.0, 38.0),
-			"life": randf_range(0.5, 1.3), "color": Color(0.72 + grain, 0.50 + grain, 0.27 + grain)})
-	play("audio.impact")
+	var kind: int = int(event.get("kind", Sim.STONE))
+	match event.type:
+		"fire":
+			flashes.append({"pos": pos, "life": 0.14, "max": 0.14, "radius": 3.0, "color": Color("fff4d6")})
+			play("audio.fire")
+		"heal", "shield":
+			var color := Color("8cdfb0") if event.type == "heal" else Color("7fb8ff")
+			flashes.append({"pos": pos, "life": 0.6, "max": 0.6, "radius": 9.0, "color": color})
+		"split":
+			flashes.append({"pos": pos, "life": 0.2, "max": 0.2, "radius": 5.0, "color": Color("fff4d6")})
+			play("audio.fire")
+		"snow":
+			flashes.append({"pos": pos, "life": 0.3, "max": 0.3, "radius": 8.0, "color": Color("eef6ff")})
+			for i in 24:
+				debris.append({"pos": pos, "vel": Vector2.from_angle(randf_range(PI, TAU)) * randf_range(5.0, 20.0),
+					"life": randf_range(0.4, 0.9), "color": Color("eef6ff")})
+		_:
+			var size: float = Sim.WEAPONS[kind].crater / 10.0
+			shake = 7.0 * size
+			flashes.append({"pos": pos, "life": 0.35, "max": 0.35, "radius": 11.0 * size, "color": Color("ffb36b")})
+			for i in int(40 * size):
+				var grain := randf() * 0.12
+				debris.append({"pos": pos, "vel": Vector2.from_angle(randf_range(PI * 1.05, TAU * 0.98)) * randf_range(8.0, 38.0) * size,
+					"life": randf_range(0.5, 1.3), "color": Color(0.72 + grain, 0.50 + grain, 0.27 + grain)})
+			play("audio.impact")
 
 func play(id: String) -> void:
 	if sounds.has(id): sounds[id].play()
@@ -360,7 +382,8 @@ func _draw() -> void:
 	draw_set_transform(Vector2(randf_range(-shake, shake), randf_range(-shake, shake)))
 	draw_texture_rect(texture, Rect2(origin, Vector2(960, 512)), false)
 	# Short aiming aid from the local, not yet transmitted angle and power.
-	var preview: PackedVector2Array = sim.trajectory(player, angle, power, 22).points
+	var preview := PackedVector2Array()
+	if Sim.WEAPONS[weapon].projectile: preview = sim.trajectory(player, angle, power, 22, weapon).points
 	for k in range(2, preview.size(), 2):
 		draw_circle(to_screen(preview[k]), 1.8, Color(cannon_color(player), 0.75 - 0.6 * k / preview.size()))
 	for i in 2:
@@ -377,6 +400,8 @@ func _draw() -> void:
 			var w := p + Vector2(wheel * 12, 6).rotated(c.tilt)
 			draw_circle(w, 6, Color("15212b"))
 			draw_arc(w, 5, 0, TAU, 20, color, 2, true)
+		if c.shield > 0 and c.hp > 0:
+			draw_arc(p + Vector2(0, -4), 26, 0, TAU, 40, Color("7fb8ff", 0.35 + 0.4 * c.shield / Sim.MAX_SHIELD), 2.5, true)
 		if c.cooldown > 0.0 and c.hp > 0:
 			draw_line(p + Vector2(-12, -20), p + Vector2(-12 + 24 * c.cooldown / 0.7, -20), Color(color, 0.7), 3)
 		if c.hp <= 0:
@@ -394,8 +419,10 @@ func _draw() -> void:
 	for shot in sim.shots:
 		var vel := Vector2(shot.vx, shot.vy + Sim.GRAVITY * t)
 		var p := to_screen(Vector2(shot.x + shot.vx * t, shot.y + shot.vy * t + 0.5 * Sim.GRAVITY * t * t))
-		draw_line(p - vel.normalized() * 12, p, Color("f4d59a"), 2, true)
-		draw_circle(p, 3, Color("fff4d6"))
+		var kind: int = int(shot.get("kind", Sim.STONE))
+		var shot_color: Color = [Color("fff4d6"), Color("8cdfb0"), Color("ff8a5c"), Color("e6b3ff"), Color("eef6ff"), Color.WHITE, Color.WHITE, Color("f4d59a")][kind]
+		draw_line(p - vel.normalized() * (20 if kind == Sim.ROCKET else 12), p, Color(shot_color, 0.8), 3 if kind == Sim.ROCKET else 2, true)
+		draw_circle(p, 2 if kind == Sim.SPLINTER else 3.5, shot_color)
 	for d in debris:
 		draw_rect(Rect2(to_screen(d.pos) - Vector2(1.5, 1.5), Vector2(3, 3)), Color(d.color, clampf(d.life * 2.0, 0.0, 1.0)))
 	for f in flashes:
@@ -411,6 +438,7 @@ func draw_health_card(index: int, pos: Vector2) -> void:
 	draw_rect(Rect2(pos, Vector2(350, 50)), Color("101f2a"))
 	draw_string(ThemeDB.fallback_font, pos + Vector2(10, 20), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, color)
 	var hp_text := "%d / %d LP" % [c.hp, c.max_hp]
+	if c.shield > 0: hp_text = "◈ %d   " % c.shield + hp_text
 	draw_string(ThemeDB.fallback_font, pos + Vector2(205, 20), hp_text, HORIZONTAL_ALIGNMENT_RIGHT, 135, 16, Color("e7edf1"))
 	draw_rect(Rect2(pos + Vector2(10, 32), Vector2(330, 8)), Color("263945"))
 	if c.hp > 0:

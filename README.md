@@ -25,6 +25,17 @@ godot --path ~/GitHub/cannonhill_clone/godot
 - Beide Kanonen starten mit **1.000 Lebenspunkten**. Direkte Treffer verursachen 200 Schaden; nahe Einschläge weniger, auch an der eigenen Kanone.
 - Bei null Lebenspunkten ist die Kanone zerstört. Die Runde endet mit Gewinner oder Unentschieden bei gleichzeitiger Zerstörung. Danach kann niemand mehr feuern.
 - **Neustart:** Welt, Lebenspunkte und Rundenergebnis zurücksetzen (offline oder beim Host).
+- **Waffen:** **1–7** oder **Q / E** wählen; Anzeige unten und über dem Spielfeld. Munition pro Runde:
+
+  | Taste | Waffe | Munition | Wirkung |
+  |---|---|---|---|
+  | 1 | Stein | ∞ | Standardgeschoss, 200 Schaden, Krater 10 |
+  | 2 | Granate | 3 | Prallt ab, explodiert nach 2,5 s; 260 Schaden |
+  | 3 | Rakete | 2 | 0,6 s Schub, 320 Schaden, großer Krater |
+  | 4 | Mega | 1 | Teilt sich am Scheitelpunkt in 6 Splitter (je 90) |
+  | 5 | Schneeball | 3 | Baut Sand auf (Deckung, Kanone eingraben) |
+  | 6 | Medipack | 1 | +300 LP sofort |
+  | 7 | Schild | 1 | Fängt 400 Schaden ab |
 - **Kippphysik:** Kanonen sind Starrkörper. Sie neigen sich mit dem Gelände, rutschen in Krater, schaukeln beim Rückstoß und können umkippen. Das Rohr zielt relativ zum Chassis. Eine gekippte Kanone kann nicht feuern und richtet sich nach 3 s wieder auf. Physiklabor: `godot --path godot res://lab/tipping_lab.tscn`, Details in [physics-proposal-p1.md](shared/physics-proposal-p1.md).
 - Zum Steuern den Fokus aus dem IP-Eingabefeld nehmen (**Esc**).
 - Godot zeigt eine kurze Flugbahnvorschau, Ladebalken und Stärkeanzeige; Schuss und Einschlag haben Sound, Trümmer, Blitz und Kamerawackeln. Der Client rekonstruiert diese Effekte aus den Snapshots und zeichnet Geschosse zwischen zwei Zuständen ballistisch weiter.
@@ -37,7 +48,7 @@ godot --path ~/GitHub/cannonhill_clone/godot
 
 TCP-Port **28741**, maximal ein Client. Im vertrauenswürdigen LAN muss die lokale Firewall die Verbindung erlauben. Dieses Projekt verändert keine Firewallregeln. Kein Router-Portforwarding notwendig. `127.0.0.1` dient dem Test mit zwei Instanzen auf demselben Rechner.
 
-Der Host berechnet Sand, Kanonen, Geschosse und Schaden mit 30 Hz; der Client erhält maximal zehn vollständige Zustände pro Sekunde. **Godot verwendet jetzt Protokoll v3 mit Lebenspunkten, Rundenergebnis und Starrkörper-Kanonen. Beide LAN-Spieler benötigen diesen Godot-Stand.** Die älteren Unity-/Unreal-Projekte bleiben auf v1; aktuelle Godot-Instanzen weisen diese Verbindungen mit Versionshinweis zurück. Die früher geprüfte Engineübergreifende Verbindung gilt ausschließlich für den Initialstand. Nachweise stehen in [VALIDATION.md](docs/VALIDATION.md). Keine Anmeldung, Internetsuche, Lobby oder automatische Wiederverbindung.
+Der Host berechnet Sand, Kanonen, Geschosse und Schaden mit 30 Hz; der Client erhält maximal zehn vollständige Zustände pro Sekunde. **Godot verwendet jetzt Protokoll v4 mit Lebenspunkten, Rundenergebnis, Starrkörper-Kanonen und Waffen. Beide LAN-Spieler benötigen diesen Godot-Stand.** Die älteren Unity-/Unreal-Projekte bleiben auf v1; aktuelle Godot-Instanzen weisen diese Verbindungen mit Versionshinweis zurück. Die früher geprüfte Engineübergreifende Verbindung gilt ausschließlich für den Initialstand. Nachweise stehen in [VALIDATION.md](docs/VALIDATION.md). Keine Anmeldung, Internetsuche, Lobby oder automatische Wiederverbindung.
 
 ## Drei Engines, ein Repository
 
