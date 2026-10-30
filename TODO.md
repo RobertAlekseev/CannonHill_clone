@@ -14,7 +14,7 @@ Aktueller Schwerpunkt: **Godot mit Lebenspunkten**. Unity und Unreal bleiben zun
 | U1 | Unity-Parität: `unity/Assets/` | Simulationstests, Windows-Build und LAN-Schnittstelle | Robert | Initialstand geprüft; Gesundheitsparität zurückgestellt |
 | E1 | Unreal-Parität: `unreal/` | Kompilation, Play, Sand und Projektil, Host/Client | Robert | Quellprojekt; Engine fehlt |
 | L1 | Echter LAN-Test / zwei PCs: `docs/VALIDATION.md` | Beide können gleichzeitig schießen; Trennung und Neuverbindung geprüft | Robert | Offen |
-| P1 | Physik vertiefen | Vorschlag für freie Rotation, Radkontakt und Umkippen mit kleinem Testfall | Noch unbesetzt | Später |
+| P1 | Physik vertiefen: `godot/lab/`, `godot/tests/rigid_cannon_test.gd`, `shared/physics-proposal-p1.md` | Vorschlag für freie Rotation, Radkontakt und Umkippen mit kleinem Testfall | Robert | Vorschlag und Godot-Labor geprüft; Integration offen |
 | V1 | Grafik verbessern | Vergleichbare Vorher/Nachher-Bilder je Engine; kleine freie Assets | Noch unbesetzt | Später |
 
 ## Reservierung
