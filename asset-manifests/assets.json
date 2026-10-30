@@ -1,5 +1,27 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "roots": {
+    "shared": "shared/assets",
+    "external": "external-assets"
+  },
+  "shared": [
+    {
+      "id": "audio.fire",
+      "path": "shared/assets/audio/fire.wav",
+      "sizeBytes": 19888,
+      "sha256": "a9985ff795b1faa64f2501b87f9f6f96363c3bc83f5a3c1fb87405b906cce8a2",
+      "source": "tools/generate_shared_audio.py",
+      "license": "Repository license (own procedural work)"
+    },
+    {
+      "id": "audio.impact",
+      "path": "shared/assets/audio/impact.wav",
+      "sizeBytes": 39734,
+      "sha256": "09ae750b5a2fa7b288e8b0d70cae8f4f3f579deb3be340cf0723d182c6bb56f5",
+      "source": "tools/generate_shared_audio.py",
+      "license": "Repository license (own procedural work)"
+    }
+  ],
   "packages": [],
-  "note": "The initial prototype requires no external assets. Add versioned packages with relative target paths, sizeBytes, sha256, source and license before USB import."
+  "note": "Engines resolve assets by id. 'shared' entries are small, versioned files in Git below roots.shared. 'packages' are large USB packages below roots.external/<package>-vNNN/ with relative target paths, sizeBytes, sha256, source and license. No engine copies these files into its own project folder."
 }

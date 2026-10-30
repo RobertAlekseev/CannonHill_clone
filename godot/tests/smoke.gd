@@ -1,5 +1,6 @@
 extends SceneTree
 const Sim = preload("res://simulation.gd")
+const Assets = preload("res://shared_assets.gd")
 var failures := 0
 
 func check(condition: bool, description: String) -> void:
@@ -38,8 +39,124 @@ func _initialize() -> void:
 	check(s.shots[0].x > initial.x and s.shots[0].y < initial.y, "initial ballistic flight")
 	for i in 400: s.step()
 	check(s.impacts > 0 and s.shots.is_empty(), "shot impacts terrain and is removed")
+	check(s.events.filter(func(e): return e.type == "fire").size() == 1, "fire emits one local event")
+	check(s.events.filter(func(e): return e.type == "impact").size() == s.impacts, "each impact emits one local event")
+	s.reset()
+	for i in 120: s.step()
+	var preview: Dictionary = s.trajectory(1, 30, 70, 400)
+	s.input_player(1, 30, 70, true)
+	var flown := 0
+	while not s.shots.is_empty() and flown < 400:
+		s.step()
+		flown += 1
+	var landing: Vector2 = preview.points[-1]
+	var impact: Dictionary = s.events[-1]
+	check(preview.hit and landing.distance_to(Vector2(impact.x, impact.y)) < 0.5, "trajectory preview predicts the impact")
+	check(not s.snapshot().has("events"), "local events stay out of the snapshot")
+	var assets = Assets.new()
+	check(assets.problems.is_empty() and assets.has("audio.fire") and assets.has("audio.impact"), "shared assets resolve with valid checksums")
+	check(assets.audio("audio.impact") is AudioStreamWAV, "shared audio loads from outside the Godot project")
 	var clone = Sim.new()
 	check(clone.apply_snapshot(s.snapshot()) and clone.cells == s.cells and clone.tick == s.tick, "network snapshot roundtrip")
 	check(not clone.apply_snapshot({"version": 99}), "incompatible protocol rejected")
+	test_health()
 	print("RESULT failures=", failures)
 	quit(1 if failures else 0)
+
+func incoming_shot(s, player: int) -> Dictionary:
+	var c: Dictionary = s.cannons[player]
+	return {"x": c.x + 5.5, "y": c.y, "vx": -90.0, "vy": -Sim.GRAVITY * Sim.DT, "age": 0.0}
+
+func test_health() -> void:
+	var s = Sim.new()
+	check(s.cannons[0].hp == 1000 and s.cannons[1].hp == 1000, "both cannons start with 1000 HP")
+	s.shots.append(incoming_shot(s, 1))
+	s.step()
+	check(s.cannons[1].hp == 800 and s.shots.is_empty(), "swept projectile collision causes exactly 200 direct damage")
+	check(s.cannons[0].hp == 1000 and s.impacts == 1, "direct hit does not double-apply splash or damage distant cannon")
+	check(s.cannons[1].hit_flash > 0, "damage activates visible hit feedback")
+	s.reset()
+	s.cannons[0].x = 60.0
+	s.cannons[0].y = 40.0
+	s.explode(71, 40)
+	check(s.cannons[0].hp == 900, "blast damage falls linearly with distance from hull")
+	s.explode(78, 40)
+	check(s.cannons[0].hp == 900, "blast radius boundary causes no damage")
+	s.explode(60, 40)
+	check(s.cannons[0].hp == 700, "own nearby explosions can cause self-damage")
+	s.reset()
+	var y: float = s.cannons[0].y
+	s.crater(40, y + 8, 12)
+	for i in 60: s.step()
+	check(s.cannons[0].hp == 1000, "debug excavation and falling do not invent damage")
+	s.reset()
+	s.cannons[1].hp = 100
+	s.shots.append(incoming_shot(s, 1))
+	s.step()
+	check(s.cannons[1].hp == 0 and s.round_over and s.winner == 0, "lethal hit clamps HP to zero and declares winner")
+	s.input_player(0, 45, 55, true)
+	s.input_player(1, 45, 55, true)
+	check(s.shots.is_empty(), "neither player can fire after round ends")
+	rigid_body_checks()
+	var snapshot: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
+	var clone = Sim.new()
+	check(clone.apply_snapshot(snapshot) and clone.round_over and clone.winner == 0 and clone.cannons[1].hp == 0, "wire snapshot preserves health and terminal round state")
+	clone.cannons[0].hp = 1
+	check(s.cannons[0].hp == 1000, "replica state does not alias authoritative cannon dictionaries")
+	var invalid := snapshot.duplicate(true)
+	invalid.cannons[0].hp = -1
+	var prior_hp: int = clone.cannons[0].hp
+	check(not clone.apply_snapshot(invalid) and clone.cannons[0].hp == prior_hp, "invalid HP snapshot is rejected atomically")
+	invalid = snapshot.duplicate(true)
+	invalid.version = 1
+	check(not clone.apply_snapshot(invalid), "legacy engine protocol cannot silently omit health")
+	s.reset()
+	s.cannons[0].hp = 200
+	s.cannons[1].hp = 200
+	s.shots.append(incoming_shot(s, 0))
+	s.shots.append(incoming_shot(s, 1))
+	s.step()
+	check(s.round_over and s.winner == -1 and s.cannons[0].hp == 0 and s.cannons[1].hp == 0, "same-tick mutual destruction is a draw")
+	s.reset()
+	check(not s.round_over and s.winner == -1 and s.cannons[0].hp == 1000 and s.cannons[1].hp == 1000, "restart restores health and clears round result")
+	s.input_player(0, 45, 55, true)
+	check(s.shots.size() == 1, "new round permits firing again")
+
+## v3: rigid-body cannons inside the real game simulation.
+func rigid_body_checks() -> void:
+	var s = Sim.new()
+	for i in 90: s.step()
+	var c: Dictionary = s.cannons[0]
+	var rest := Vector2(c.x, c.y)
+	var rest_tilt: float = c.tilt
+	for i in 60: s.step()
+	check(Vector2(c.x, c.y).distance_to(rest) < 0.1 and absf(c.tilt - rest_tilt) < 0.01, "rigid cannon rests on the start terrain")
+	check(absf(rest_tilt) > 0.1, "rigid cannon follows the sloped start position")
+	var level: Vector2 = s.barrel(0, 45.0)
+	check(absf(level.angle() - (Sim.aim(0, 45.0).angle() + c.tilt)) < 0.001, "barrel aims relative to the tilted chassis")
+	s.input_player(0, 45, 90, true)
+	var peak := 0.0
+	for i in 30:
+		s.step()
+		peak = maxf(peak, absf(c.tilt - rest_tilt))
+	check(peak > 0.005 and not s.tipped(0), "recoil rocks the cannon without tipping it")
+	s.cannons[1].tilt = PI
+	s.cannons[1].cooldown = 0.0
+	s.input_player(1, 45, 55, true)
+	check(s.shots.filter(func(shot): return shot.vx < 0.0).is_empty(), "a tipped cannon cannot fire")
+	for i in int(Sim.RIGHTING_TIME / Sim.DT) + 30: s.step()
+	check(not s.tipped(1) and absf(s.cannons[1].tilt) < 0.6, "a tipped cannon rights itself after a while")
+	s.reset()
+	for i in 60: s.step()
+	c = s.cannons[0]
+	var before: Vector2 = Vector2(c.x, c.y)
+	var tilt_before: float = c.tilt
+	s.crater(c.x + 6, c.y + 6, 7)
+	for i in 90: s.step()
+	check(c.y > before.y + 1.0 and c.tilt > tilt_before + 0.1, "one-sided undermining tilts the cannon into the hole")
+	var wire: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
+	var replica = Sim.new()
+	check(wire.version == 3 and replica.apply_snapshot(wire) and is_equal_approx(replica.cannons[0].tilt, c.tilt) and replica.cannons[0].has("spin"), "v3 snapshot carries rigid-body state")
+	var broken := wire.duplicate(true)
+	broken.cannons[0].erase("spin")
+	check(not replica.apply_snapshot(broken), "snapshot without rigid-body fields is rejected")

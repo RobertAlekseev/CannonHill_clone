@@ -1,10 +1,48 @@
 # Prüfstand
 
-Stand: 29.10.2026, Windows, Initialprototyp.
+Stand: 30.10.2026, Windows und macOS (Godot 4.7.2).
+
+## Integration G3 + G4 + P1, Godot v3 (macOS)
 
 | Prüfung | Ergebnis |
 |---|---|
-| Godot 4.7.2, 13 Simulationsprüfungen | Bestanden: Sanderhaltung, Fels, Auflage, Untergrabung, Nachrutschen, Schuss, Cooldown, Flug, Einschlag, Snapshot und Version |
+| `tests/smoke.gd`, 44 Simulationsprüfungen | Bestanden: Sand, Ballistik, Effekte, Lebenspunkte und neu: Ruhe am Hang, Rohr relativ zum Chassis, Rückstoß schaukelt ohne Kippen, gekippt keine Schüsse, Aufrichten nach 3 s, einseitige Untergrabung kippt ins Loch, v3-Snapshot mit Starrkörperfeldern |
+| `tests/rigid_cannon_test.gd`, 19 Prüfungen | Bestanden (Hang, einseitiger und vollständiger Bodenverlust, Kante, Fall, Rückstoß, Sand, Snapshot) |
+| `tools/test-lan.sh` | Beide Paare bestanden: Szenen-Smoke mit Effekten beim Client; Gesundheits-TCP-Test 1000→0 LP, Gewinner, Neustart |
+| Szene und Labor | Smoke-Läufe bestanden; Screenshot `docs/images/godot-v3-tilt.png` angesehen |
+| Windows-Skripte (`*.ps1`) | Nicht ausgeführt (macOS) |
+
+## Godot-Effekte G4 (macOS)
+
+| Prüfung | Ergebnis |
+|---|---|
+| Godot 4.7.2, 18 Simulationsprüfungen | Bestanden, zusätzlich: Feuer-/Einschlagereignisse, Flugbahnvorschau trifft den echten Einschlag, Ereignisse nicht im Snapshot, Shared-Assets mit Prüfsumme außerhalb von `godot/` geladen |
+| Godot-Szene headless und mit Fenster, 200 Schritte | Bestanden, ein Schuss, ein Einschlag, beide Sounds geladen |
+| `tools/test-lan.sh`, Godot Host → Godot Client | Bestanden; Client rekonstruiert beide Schüsse und Einschläge als Effekte |
+| Screenshots mit Vorschau und Einschlageffekt | Angesehen (`reports/godot-view.png`, `reports/godot-impact.png`, lokal) |
+| Unity/Unreal mit den Godot-Änderungen | Nicht erneut geprüft; Protokoll v1 und Simulationsregeln sind unverändert |
+
+## Aktuell: Godot mit Lebenspunkten
+
+| Prüfung | Ergebnis |
+|---|---|
+| Godot 4.7.2, 29 Simulationsprüfungen | Bestanden: bisherige Sand-/Ballistiktests plus direkte Treffer, Distanzschaden, Selbstschaden, Tod, Gleichstand, Schusssperre, HP-Snapshot, Version und Neustart |
+| Zwei Godot-Prozesse, `Test-GodotHealthLan.ps1` | Bestanden: Client und Host feuern über die reale TCP-Verbindung. Client sieht 1000→800→600→400→200→0 HP, Gewinner und Host-Neustart auf volle HP |
+| Bisheriger Godot-LAN-Test, `Test-Lan.ps1` | Weiterhin bestanden: beide Spieler feuern, beide Einschläge werden übertragen |
+| Native Szene, Schaden | Bestanden: 800/1000 LP, reduzierter Balken und Krater; Feuer-Button-Signal löst einen weiteren Schuss aus |
+| Native Szene, zerstörte Kanone | Bestanden: 0/1000 LP, Wrack, Gewinnertext; Feuer-Button kann nach Rundenende keinen Schuss erzeugen |
+| Visuelle Kontrolle | Vorher-, Schadens- und Sieger-Screenshots angesehen; HUD und Welt ohne Überlagerung |
+| Unity und Unreal | In diesem Schritt unverändert; keine Gesundheitsparität behauptet |
+
+Godot nutzt inzwischen Protokoll v3 (v2 plus Starrkörper). Die nachfolgenden Engineübergreifenden Tests belegen **nur den Initialstand mit v1**, nicht Kompatibilität der aktuellen Godot-Erweiterung.
+
+Lokale neue Nachweise: `reports/godot-health-tests.log`, `health-lan-{host,client}.log`, `godot-health-scene.log`, `godot-victory-scene.log` und `godot-health-{before,after,victory}.png`. Zwei kleine geprüfte Ergebnisbilder liegen unter `docs/images/`. Echte Tastatur-/Mausbedienung auf zwei physischen Rechnern und Langzeittest bleiben offen.
+
+## Initialstand 717005d (historischer Prüfstand, Protokoll v1)
+
+| Prüfung | Ergebnis |
+|---|---|
+| Godot 4.7.2, 12 Simulationsprüfungen | Bestanden: Sanderhaltung, Fels, Auflage, Untergrabung, Nachrutschen, Schuss, Cooldown, Flug, Einschlag, Snapshot und Version; frühere Angabe 13 war ein Zählfehler |
 | Godot-Szene, 200 Simulationsschritte mit automatischem Schuss | Bestanden, ein Einschlag |
 | Unity 6000.6.3f1, 8 Simulationsprüfungen | Bestanden |
 | Unity Windows x64 Development Build | Erfolgreich, lokal unter `builds/unity/CannonHill.exe` |

@@ -1,6 +1,25 @@
 # Große Assets ohne GitHub
 
-Der erste Prototyp braucht keine externen Assets. Es werden keine Downloads oder Installationen angestoßen.
+Der Prototyp braucht keine externen Assets; die beiden Sounds in `shared/assets/audio/` sind prozedural erzeugt (`tools/generate_shared_audio.py`) und optional. Es werden keine Downloads oder Installationen angestoßen.
+
+## Gemeinsame Ordnerstruktur
+
+| Ort | Inhalt | In Git |
+|---|---|---|
+| `shared/assets/<art>/` | Kleine, selbst erstellte oder frei lizenzierte Dateien (Audio, kleine Texturen) | Ja |
+| `external-assets/<paket>-vNNN/` | Große USB-Pakete, unveränderlich pro Version | Nein |
+| `asset-manifests/assets.json` | ID, Pfad, Größe, SHA-256, Quelle, Lizenz für beides | Ja |
+
+Engines verweisen per **ID** auf das Manifest, nicht auf eigene Kopien. Godot (`godot/shared_assets.gd`) lädt zur Laufzeit aus diesen Ordnern. Unity und Unreal können dieselben Pfade später z. B. über einen Import-/Sync-Schritt oder Laufzeitladen nutzen; Engine-Importdaten (`.meta`, `.uasset`, `.import`) entstehen dann nur im jeweiligen Engineordner und gelten nicht als Quelle.
+
+Manifest-Format für Pakete:
+
+```json
+{"name": "terrain-cc0-v001", "source": "...", "license": "CC0",
+ "files": [{"id": "texture.sand", "path": "textures/sand.png", "sizeBytes": 1234, "sha256": "..."}]}
+```
+
+Datei liegt dann unter `external-assets/terrain-cc0-v001/textures/sand.png`.
 
 Für spätere Pakete:
 
