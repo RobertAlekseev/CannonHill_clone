@@ -3,6 +3,7 @@
 # headless Godot processes over 127.0.0.1.
 #  1. Scene smoke: each player fires once, both impacts and effects reach the client.
 #  2. Health: five direct hits over TCP, damage, winner and host restart replicate.
+#  3. Weapons: both choose Mega (client choice travels as input), splits replay.
 # Usage: tools/test-lan.sh [path-to-godot]
 set -euo pipefail
 GODOT="${1:-godot}"
@@ -50,3 +51,8 @@ run_pair health-lan --script res://tests/health_lan_peer.gd --
 grep -q HOST_HEALTH_PASS "$HOST_LOG" || fail "host did not verify damage and winner"
 grep -q "CLIENT_HEALTH_PASS damage=true victory=true restart=true" "$CLIENT_LOG" || fail "client did not verify damage, winner and restart"
 echo "PASS: health over TCP, 1000->800->0 HP, winner and host restart replicate to the client."
+
+run_pair weapons-lan -- --smoke --weapon=3
+grep -q "SMOKE_FINISHED tick=200 impacts=12" "$HOST_LOG" || fail "expected both Mega shots to split into six splinters each"
+grep -q "EFFECTS fire=2 impact=12 snow=0 heal=0 shield=0 split=2" "$CLIENT_LOG" || fail "client did not replay both Mega splits and all twelve splinter impacts"
+echo "PASS: weapon choice over TCP, both players fire Mega, all splits and impacts replay on the client."

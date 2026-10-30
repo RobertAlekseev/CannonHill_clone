@@ -23,4 +23,4 @@ Belege: [Munitionskennungen und 1.000 maximale Lebenspunkte](https://github.com/
 
 ## Aktuelle Umsetzung
 
-Godot erhält zunächst **ein** Standardgeschoss und 1.000 Lebenspunkte pro Kanone. Höchstens 200 Schaden, Distanzabfall, Selbstschaden und runde Hitboxen sind eigene Prototypregeln. Die Waffenliste ist eine Referenz für spätere Arbeit, keine bereits implementierte Waffenauswahl. Fremder Quellcode oder Originalassets wurden nicht übernommen.
+Godot hat 1.000 Lebenspunkte pro Kanone und seit Protokoll v4 sieben wählbare Einträge: Stein, Granate, Rakete, Mega (mit Splittern), Schneeball (baut Sand auf), Medipack und Schild. Alle Werte und Verhaltensweisen sind eigenes Balancing und eigene Implementierung (`shared/gameplay-spec.md`), keine Nachbildung des Originals. Noch nicht umgesetzt: Laser, Gewehr, Säurefass, Magnetrakete und Magnetfeld. Fremder Quellcode oder Originalassets wurden nicht übernommen.

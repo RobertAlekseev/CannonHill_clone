@@ -11,6 +11,7 @@ Aktueller Schwerpunkt: **Godot mit Lebenspunkten**. Unity und Unreal bleiben zun
 | G2 | Godot-Ansicht und LAN: `godot/main.gd` | Zwei Prozesse tauschen Zustände und Feuerbefehle aus | Robert | Loopback und Ansicht geprüft |
 | G3 | Godot-Lebenspunkte und Rundenende | Treffer, Explosionsabfall, Selbstschaden, Zerstörung und Neustart inkl. LAN | Robert | 29 Simulationstests, TCP-Integration und native Ansichten geprüft |
 | G4 | Godot-Darstellung und Shared-Assets: `godot/main.gd`, `godot/shared_assets.gd`, `shared/assets/`, `asset-manifests/` | Vorschau, Effekte, Sounds aus gemeinsamem Ordner; ohne Protokolländerung | Robert | Automatisiert geprüft (macOS) |
+| G5 | Godot-Waffen: `godot/simulation.gd`, `godot/main.gd`, `shared/` | Sieben Waffen/Hilfsmittel mit Munition, LAN v4 mit Ereignisprotokoll | Robert | Automatisiert geprüft (macOS) |
 | U1 | Unity-Parität: `unity/Assets/` | Simulationstests, Windows-Build und LAN-Schnittstelle | Robert | Initialstand geprüft; Gesundheitsparität zurückgestellt |
 | E1 | Unreal-Parität: `unreal/` | Kompilation, Play, Sand und Projektil, Host/Client | Robert | Quellprojekt; Engine fehlt |
 | L1 | Echter LAN-Test / zwei PCs: `docs/VALIDATION.md` | Beide können gleichzeitig schießen; Trennung und Neuverbindung geprüft | Robert | Offen |

@@ -34,6 +34,15 @@ Only host snapshots set HP or the result. Client input still contains only angle
 
 Current supported pairing: Godot v3 ↔ Godot v3 (v2 is superseded). All other health pairings need a later implementation and new tests.
 
+## Godot v4: weapons and event log
+
+Same as v3 with `version: 4` (v3 is superseded; current pairing Godot v4 ↔ Godot v4).
+
+- Input adds `weapon` (0..6). The host ignores other values and keeps the previous choice.
+- Each cannon adds `weapon` (0..6), `ammo` (array of 7 counts, `-1` = unlimited) and `shield` (0..400).
+- Each shot adds `kind` (0..7, 7 = splinter from Mega) and may rest on the ground (grenade).
+- State adds `log`: the last 16 presentation events `{id, tick, type, x, y, kind?, player?}` with `type` one of fire, impact, snow, heal, shield, split. Ids increase across rounds. Clients play events with ids above the last one they played; on join or host restart they skip events older than 15 ticks. Effects are presentation only and never feed back into the simulation.
+
 ## Godot v3: rigid-body cannons
 
 Same as v2 with `version: 3`. Each cannon additionally carries `vx` and `spin` (rad/s) and `tipped_time` (seconds lying tipped). `tilt` is now the full chassis rotation in rad, wrapped to -π..π (positive = clockwise on screen), no longer a visual value clamped to ±0.5. `angle` stays the barrel angle relative to the chassis. Clients apply the host values unchanged; only the host runs the solver from shared/physics-proposal-p1.md. Snapshots missing any of these fields are rejected.

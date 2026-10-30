@@ -29,6 +29,18 @@ Nur Godot erweitert den Initialstand vorerst:
 
 Dies ist eigenes Prototyp-Balancing; keine vollständige Originalphysik oder Waffenparität.
 
+## Godot-Erweiterung: Waffen (v4)
+
+Eigenes Balancing, angelehnt an die Kategorien in `docs/CANNONHILL_REFERENCE.md`. Werte stehen in `WEAPONS` in `godot/simulation.gd`.
+
+- Munition pro Runde und Spieler, Neustart füllt auf. Nachladezeit je Waffe (Stein 0,7 s, sonst 1,0–1,5 s).
+- Schaden wie v2: direkter Treffer = Maximalschaden, sonst linear bis Explosionsradius ab Hüllenrand. Ein Schild nimmt Schaden vor den LP auf (höchstens 400).
+- Granate: Bei Bodenkontakt zurück auf den letzten freien Punkt, Reflexion an der lokalen Normalen mit Faktor 0,45, unter 3 Zellen/s Ruhe. Explodiert nach 2,5 s oder bei Kanonentreffer.
+- Rakete: Zusätzlich 70 Zellen/s² in Flugrichtung in den ersten 0,6 s.
+- Mega: Beim Wechsel von steigend zu fallend 6 Splitter mit `vx + (k − 2,5)·9`, `vy − 4 + |Versatz|·0,3`.
+- Schneeball: Luftzellen im Radius 8 werden Sand (nicht in den unteren vier Reihen und nicht im Radius 5 um lebende Kanonen). Kein Schaden.
+- Medipack und Schild wirken sofort ohne Geschoss und ohne Rückstoß.
+
 ## Godot-Erweiterung: Starrkörper-Kanonen (v3)
 
 - Kanonen nutzen das Modell aus `physics-proposal-p1.md` (`godot/rigid_cannon.gd`) statt der v1-Radstützpunkte. Startposition wie v1, Räder immer gebremst.
