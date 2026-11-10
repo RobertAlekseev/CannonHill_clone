@@ -53,3 +53,11 @@ Die automatischen LAN-Läufe testen Zustandsübertragung und Schüsse über `127
 - [ ] Je verfügbarem Enginepaar beide Host-Richtungen testen.
 
 Automatisierte Loopback-Tests ersetzen diese Abnahme nicht. Native Rigid-Body-Physik und freie Rotation gehören nicht zum aktuellen Modell.
+
+
+## Unreal 5.8: Fahren und Waffenwahl (04.11.2026)
+
+- UE 5.8.4 Editor Development Build: bestanden (BuildSettings V7 im lokalen UE-5.8-Projekt).
+- Nativer Automationstest `CannonHill.DrivingAndWeapons`: bestanden, Exitcode 0. Prueft Fahrt auf flachem Boden in beide Richtungen, Stopp bei veralteter Eingabe, Geschosstyp und Nachladezeit fuer drei Waffen sowie Nachladesperre.
+- Log: `reports/unreal-driving-weapons.log` (lokal, ignoriert).
+- Kein manueller Grafik-/Tastaturtest und kein Zwei-Rechner-LAN-Test fuer diesen Stand. Kratergroessen und steiles Terrain sind noch nicht automatisiert abgenommen.

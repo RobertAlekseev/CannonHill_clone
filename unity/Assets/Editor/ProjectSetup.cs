@@ -51,6 +51,35 @@ public static class ProjectSetup
         Check(s.Impacts > 0 && s.Shots.Count == 0, "terrain impact");
         var clone = new SandSimulation();
         Check(clone.Apply(JsonUtility.FromJson<Message>(JsonUtility.ToJson(s.Snapshot()))) && clone.Cells.SequenceEqual(s.Cells), "wire snapshot roundtrip");
+        s.Reset();
+        s.Tick = 149;
+        s.Step();
+        Check(s.Drop != null && s.Drop.y > 4, "falling crate spawns");
+        Check(clone.Apply(JsonUtility.FromJson<Message>(JsonUtility.ToJson(s.Snapshot()))) &&
+            clone.Drop != null && clone.Drop.kind == s.Drop.kind, "falling crate replicates");
+        for (int kind = 0; kind < 3; kind++)
+        {
+            s.Cannons[1].hp = 800;
+            s.Drop = new BuffDrop { x = 120, y = 40, kind = kind };
+            s.Shots.Add(new Shot { x = 124, y = 40, vx = -55, owner = 1 });
+            s.Step();
+            Check(s.Drop == null && s.Shots.Count == 0, "projectile collects crate");
+            if (kind == 0) Check(s.Cannons[1].hp == 950, "repair restores 150 HP");
+            if (kind == 1)
+            {
+                var defender = s.Cannons[1];
+                s.Shots.Add(new Shot { x = defender.x + 4, y = defender.y, vx = -55 });
+                s.Step();
+                Check(defender.hp == 700, "shield halves damage");
+            }
+            if (kind == 2)
+            {
+                s.Input(1, 45, 55, true);
+                Check(Math.Abs(s.Cannons[1].cooldown - .35f) < .001f, "rapid fire halves reload");
+            }
+        }
+        s.Reset();
+        Check(s.Cannons[1].hp == 1000 && s.Cannons[1].rapid == 0 && s.Drop == null, "restart clears buffs");
         Debug.Log("UNITY_SIMULATION_PASS");
     }
     public static void Build()

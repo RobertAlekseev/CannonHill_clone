@@ -42,6 +42,7 @@ func _initialize() -> void:
 	check(clone.apply_snapshot(s.snapshot()) and clone.cells == s.cells and clone.tick == s.tick, "network snapshot roundtrip")
 	check(not clone.apply_snapshot({"version": 99}), "incompatible protocol rejected")
 	test_health()
+	test_buffs()
 	print("RESULT failures=", failures)
 	quit(1 if failures else 0)
 
@@ -102,3 +103,33 @@ func test_health() -> void:
 	check(not s.round_over and s.winner == -1 and s.cannons[0].hp == 1000 and s.cannons[1].hp == 1000, "restart restores health and clears round result")
 	s.input_player(0, 45, 55, true)
 	check(s.shots.size() == 1, "new round permits firing again")
+
+func test_buffs() -> void:
+	var s = Sim.new()
+	s.tick = Sim.DROP_INTERVAL - 1
+	s.step()
+	check(not s.drop.is_empty() and s.drop.y > 4.0, "crate spawns and falls at five seconds")
+	var clone = Sim.new()
+	var state: Dictionary = JSON.parse_string(JSON.stringify(s.snapshot()))
+	check(clone.apply_snapshot(state) and is_equal_approx(float(clone.drop.y), float(s.drop.y)) and clone.drop.x == s.drop.x and int(clone.drop.kind) == int(s.drop.kind), "falling crate replicates over JSON")
+	for kind in 3:
+		s.drop = {"x": 120.0, "y": 40.0, "kind": kind}
+		s.cannons[1].hp = 800
+		s.shots.append({"x": 124.0, "y": 40.0, "vx": -55.0, "vy": 0.0, "age": 0.0, "owner": 1})
+		s.step()
+		check(s.drop.is_empty() and s.shots.is_empty() and s.last_buff_player == 1 and s.last_buff_kind == kind, "shot awards crate to its owner")
+		match kind:
+			0: check(s.cannons[1].hp == 950, "repair restores 150 HP")
+			1:
+				s.explode(s.cannons[1].x, s.cannons[1].y, 1)
+				check(s.cannons[1].hp == 700, "shield halves direct damage")
+			2:
+				s.input_player(1, 45, 55, true)
+				check(is_equal_approx(s.cannons[1].cooldown, 0.35), "rapid fire halves reload")
+	state = JSON.parse_string(JSON.stringify(s.snapshot()))
+	check(clone.apply_snapshot(state) and clone.cannons[1].rapid == s.cannons[1].rapid and clone.last_buff_kind == 2, "active buff and pickup notice replicate")
+	s.cannons[1].rapid = Sim.DT * 0.5
+	s.step()
+	check(s.cannons[1].rapid == 0.0, "timed buff expires")
+	s.reset()
+	check(s.drop.is_empty() and s.cannons[1].rapid == 0.0 and s.cannons[1].shield == 0.0 and s.buff_notice == 0.0, "new round clears buffs")

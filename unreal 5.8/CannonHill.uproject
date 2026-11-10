@@ -1,0 +1,13 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "Games",
+	"Description": "Asset-free 2D sand and artillery laboratory",
+	"Modules": [
+		{
+			"Name": "CannonHill",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

@@ -1,8 +1,11 @@
 param(
     [ValidateSet('godot', 'unity')][string]$HostEngine = 'unity',
-    [ValidateSet('godot', 'unity')][string]$ClientEngine = 'godot'
+    [ValidateSet('godot', 'unity')][string]$ClientEngine = $HostEngine
 )
 $ErrorActionPreference = 'Stop'
+if ($HostEngine -ne $ClientEngine) {
+    throw 'The current Godot (v4) and Unity (v5) builds use different LAN protocols. Use the same engine on both peers.'
+}
 $root = Split-Path $PSScriptRoot -Parent
 $report = Join-Path $root 'reports'
 New-Item -ItemType Directory -Force -Path $report | Out-Null

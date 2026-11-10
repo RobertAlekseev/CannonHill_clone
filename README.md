@@ -4,7 +4,18 @@ Eigenständiger, assetfreier 2D-Artillerieprototyp für **Unity, Godot und Unrea
 Ziel: zwei Spieler in Echtzeit über LAN, rieselnder Sand, tragender Untergrund und ballistische Geschosse.
 Als Referenz ist jetzt **Cannonhill von Dirk Plate** identifiziert. Die belegten Waffen und Hilfsmittel stehen in [CANNONHILL_REFERENCE.md](docs/CANNONHILL_REFERENCE.md). Keine Originaldateien oder fremder Spielcode sind enthalten.
 
-**Aktueller Fokus: Godot.** Godot besitzt Lebenspunkte und Rundenergebnisse; Unity und Unreal bleiben vorerst auf dem Initialstand.
+Godot, Unity und Unreal haben Lebenspunkte, Rundenergebnisse und fallende Buff-Kisten. Unreal bietet auch Fahren und drei Geschosstypen.
+
+## Unreal 5.8: Fahren und Waffenwahl
+
+`unreal 5.8/CannonHill.uproject` im Editor oeffnen, Play starten und den Spielbereich anklicken.
+
+- **A / D:** fahren; steile Kanten und die andere Kanone blockieren. Kein Antrieb in der Luft.
+- **1 / 2 / 3:** Standard / Schwer / Schnell. Kraterradius: 10 / 16 / 5 Zellen; Nachladen: 0,7 / 1,4 / 0,3 Sekunden. Unbegrenzte Munition. Schnellfeuer halbiert die Nachladezeit der gewählten Waffe.
+- **Pfeile:** Winkel und Staerke; **Leertaste:** feuern; **Tab:** offline Kanone wechseln.
+- **H / J:** LAN hosten / verbinden. Beide Unreal-Spieler brauchen diesen Stand mit Protokoll **v6**, inkompatibel mit Godot v4 und alten v1-Clients.
+
+Gameplay-Quellen sind auch in `unreal/Source` enthalten. Die Targets in `unreal 5.8/Source` sind fuer UE 5.8 angepasst.
 
 ## Sofort ausprobieren: Godot
 
@@ -23,15 +34,41 @@ godot --path C:\GitHub\CannonHill_clone\godot
 - **Neustart:** Welt, Lebenspunkte und Rundenergebnis zurücksetzen (offline oder beim Host).
 - Zum Steuern den Fokus aus dem IP-Eingabefeld nehmen.
 
+In allen drei Fassungen fällt alle fünf Sekunden eine Kiste nahe der Spielfeldmitte. Triff sie mit einem Schuss, bevor sie den Boden erreicht. Reparatur bringt bis zu 150 LP. Schild halbiert den Schaden für acht Sekunden, Schnellfeuer halbiert acht Sekunden lang die Nachladezeit. Im LAN entscheidet der Host, wer die Kiste trifft.
+
+## Gemeinsame LAN-Partie
+
+Der Rust-Server ermöglicht gemischte Partien zwischen Browser, Godot, Unity und Unreal. Unter Windows den Host mit `.\rust-web\Start.ps1 -Lan` starten. Unter macOS `sh rust-web/start.sh --lan` verwenden.
+
+- Im Browser `http://HOST-IP:8000` öffnen.
+- In Godot und Unity `ws://HOST-IP:8000/ws` ins Adressfeld eintragen und **Verbinden** wählen.
+- Unreal mit `-RustServer=ws://HOST-IP:8000/ws` starten.
+
+Die erste Verbindung erhält Spieler 1 und kann die Runde neu starten. Die gemischte Partie verwendet den Rust-Regelsatz mit der Standardwaffe. [Start und Prüfungen](rust-web/README.md).
+
 ## LAN für zwei Spieler
 
-1. Auf PC 1 **LAN hosten** drücken. Der Host spielt die linke Kanone.
-2. Auf PC 2 die lokale IPv4-Adresse von PC 1 eingeben und **Verbinden** drücken.
-3. Der Client spielt die rechte Kanone; beide können gleichzeitig schießen.
+Beide Rechner ins gleiche Heimnetz bringen (WLAN oder Kabel). Beide starten dieselbe Engine mit demselben Spielstand: Godot v4, Unity v5 oder Unreal v6. Die Protokolle sind untereinander inkompatibel.
 
-TCP-Port **28741**, maximal ein Client. Im vertrauenswürdigen LAN muss die lokale Firewall die Verbindung erlauben. Dieses Projekt verändert keine Firewallregeln. Kein Router-Portforwarding notwendig. `127.0.0.1` dient dem Test mit zwei Instanzen auf demselben Rechner.
+Unter Windows im Projektordner auf Rechner 1:
 
-Der Host berechnet Sand, Kanonen, Geschosse und Schaden mit 30 Hz; der Client erhält maximal zehn vollständige Zustände pro Sekunde. **Godot verwendet jetzt Protokoll v2 mit Lebenspunkten und Rundenergebnis. Beide LAN-Spieler benötigen diesen Godot-Stand.** Die älteren Unity-/Unreal-Projekte bleiben auf v1; aktuelle Godot-Instanzen weisen diese Verbindungen mit Versionshinweis zurück. Die früher geprüfte Engineübergreifende Verbindung gilt ausschließlich für den Initialstand. Nachweise stehen in [VALIDATION.md](docs/VALIDATION.md). Keine Anmeldung, Internetsuche, Lobby oder automatische Wiederverbindung.
+```powershell
+.\tools\Start-Lan.ps1 -Engine Godot -Role Host
+```
+
+Der Starter zeigt die IPv4-Adressen der aktiven Adapter. Gib deinem Freund die Adresse deines WLAN- oder Ethernet-Adapters. Rechner 2 startet mit dieser Adresse (hier ein Beispiel):
+
+```powershell
+.\tools\Start-Lan.ps1 -Engine Godot -Role Join -Address 192.168.178.42
+```
+
+Setzt beide `-Engine Unity` oder beide `-Engine Unreal`, wenn ihr diese Fassung spielen wollt. Der Starter erwartet Godot im PATH, die Unity-EXE unter `builds/unity/CannonHill.exe` bzw. das kompilierte Unreal-5.8-Projekt. Bei einer anderen Unreal-Installation gib `-UnrealEditor` mit dem Pfad zur Editor-EXE an.
+
+Alternativ: In Godot und Unity **LAN hosten** wählen. Am zweiten Rechner die Host-IP eingeben und **Verbinden** anklicken. In Unreal startet **H** den Host. Den Unreal-Client mit `-Join=<Host-IP>` starten.
+
+Der Host steuert die linke Kanone, der Gast die rechte. Der Host berechnet die Spielwelt und schickt den Zustand an den Gast. Es gibt Platz für einen Gast pro Partie.
+
+Wenn die Verbindung nicht klappt, prüft am Host zuerst die Firewall für **TCP 28741** im privaten Netz. Gäste-WLAN kann Verbindungen zwischen Geräten blockieren. `127.0.0.1` ist für zwei Instanzen auf demselben Rechner. Im Heimnetz braucht ihr keine Portweiterleitung. Verbindungen zwischen getrennten Heimnetzen sind hier nicht eingerichtet.
 
 ## Drei Engines, ein Repository
 
@@ -39,7 +76,7 @@ Der Host berechnet Sand, Kanonen, Geschosse und Schaden mit 30 Hz; der Client er
 |---|---|
 | `godot/` | `project.godot` öffnen und F5 |
 | `unity/` | In Unity Hub als Projekt hinzufügen; Unity **6000.6.3f1**; Menü **Cannon Hill → Create or open sandbox**, dann Play |
-| `unreal/` | C++-Quellprojekt für UE **5.4+**; `.uproject` einer installierten Engine zuordnen, Projektdateien erzeugen, Development Editor kompilieren und Play |
+| `unreal 5.8/` | Getestetes C++-Projekt für UE **5.8**. Development Editor kompilieren und Play starten |
 | `shared/` | Gemeinsame Maße, Regeln und Netzwerkformat |
 | `asset-manifests/` | Versions- und Prüfsummenlisten für spätere USB-Pakete |
 | `external-assets/` | Ignorierter Ablageplatz für große Pakete |
@@ -55,9 +92,11 @@ Unreal benötigt zusätzlich den zur gewählten Engine passenden C++-Compiler un
 - Geschosse mit Schwerkraft, Kollisions-Unterteilung, Einschlag und 0,7 Sekunden Nachladezeit.
 - Ausschließlich prozedurale Farben und Geometrie, keine Assetdownloads.
 
-Dies ist ein **gemeinsames Referenzmodell**, kein Vergleich von Unity Physics, Godot Physics und Unreal Chaos. Kanonen kippen und rollen noch nicht frei, Sand übt keinen realistischen Druck aus. Godot modelliert nun Schaden; Unity und Unreal noch nicht. Unterschiede bei Gleitkommazahlen sind möglich, weshalb nur der Host simuliert. Die grafische Darstellung ist absichtlich klein gehalten; Beleuchtung, Partikel und höherwertige Grafik folgen später.
+Dies ist ein **gemeinsames Referenzmodell**, kein Vergleich von Unity Physics, Godot Physics und Unreal Chaos. Kanonen kippen und rollen noch nicht frei; Unreal bietet einen vereinfachten Fahrantrieb, Sand übt keinen realistischen Druck aus. Alle drei Fassungen modellieren Schaden, Reparatur und Schild. Unterschiede bei Gleitkommazahlen sind möglich, weshalb nur der Host simuliert. Die grafische Darstellung ist absichtlich klein gehalten; Beleuchtung, Partikel und höherwertige Grafik folgen später.
 
 ## Gemeinsam entwickeln
+
+Die [lokale Aufgabenübersicht](docs/aufgaben/README.md) zeigt den Stand laufender Arbeiten. Der [Ablauf für die Projektbetreuung](docs/HUMANLAYER.md) verbindet Analyse, Plan, Umsetzung und Review im Checkout. Für die gemeinsame Arbeit an GitHub gelten die folgenden Regeln.
 
 Vorerst übernimmt Robert alle Aufgaben. [TODO.md](TODO.md) enthält spätere, nach Dateien abgegrenzte Aufgaben und Abnahmekriterien. Die Issues auf GitHub sind die verbindliche Reservierung: **erst zuweisen, dann beginnen**, pro Aufgabe ein Branch und Pull Request. Globale Einstellungen und Integrationsszenen werden jeweils nur von einer Person geändert. Eine Aufgabenliste oder CODEOWNERS stellt keine technische Dateisperre dar.
 
@@ -78,6 +117,6 @@ godot --headless --path .\godot --script res://tests/smoke.gd
 
 Builds, Logs und Screenshots bleiben lokal in `builds/` und `reports/`. Engine-Caches sind ignoriert. Teststand und Grenzen: [VALIDATION.md](docs/VALIDATION.md).
 
-`Test-EnginePair.ps1` bleibt für die v1-Initialprojekte erhalten; Godot/Unity-Paarungen sind mit dem aktuellen Gesundheitsstand nicht kompatibel.
+`Test-EnginePair.ps1` startet zwei Prozesse derselben Engine. Godot und Unity verwenden unterschiedliche LAN-Protokolle.
 
 ![Godot mit Lebenspunkten, Trefferschaden und Sandkrater](docs/images/godot-health.png)

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cannon Hill · Rust-Web</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #111e28; color: #edf2ee; font: 1rem system-ui, sans-serif; }
+    main { max-width: 70rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { margin: 0; color: #ffd991; }
+    header p, footer { color: #b6c5cb; }
+    .hud { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
+    .player { flex: 1 1 14rem; padding: .7rem; background: #203344; border: 2px solid transparent; }
+    .player[aria-current="true"] { border-color: #ffd991; }
+    button { padding: .65rem .85rem; color: #151d25; background: #ffd991; border: 0; border-radius: .3rem; font: inherit; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: default; }
+    canvas { display: block; width: 100%; height: auto; background: #0c1824; image-rendering: pixelated; }
+    #notice { margin: .75rem 0; min-height: 1.5rem; }
+    footer { line-height: 1.55; }
+  </style>
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <main>
+    <header><h1>Cannon Hill</h1><p id="mode">Rust / WebAssembly · Zwei Kanonen an einer Tastatur</p></header>
+    <div class="hud">
+      <div class="player" id="player-0" aria-current="true">Spieler 1</div>
+      <div class="player" id="player-1">Spieler 2</div>
+      <button id="switch" disabled>Kanone wechseln</button>
+      <button id="reset" disabled>Neustart</button>
+    </div>
+    <a id="local" href="./index.html" style="color: #ffd991" hidden>Lokal an einer Tastatur spielen</a>
+    <canvas id="arena" width="960" height="512" aria-label="Cannon-Hill-Spielfeld"></canvas>
+    <p id="notice" role="status">Spiel wird geladen …</p>
+    <footer>↑ / ↓ Winkel · ← / → Stärke · Leertaste feuern. <span id="switch-help">Tab wechselt im Spielfeld die Kanone.</span> Ins Spielfeld klicken, um die Tastatursteuerung zu aktivieren. Alle fünf Sekunden fällt eine Buff-Kiste. Triff sie, bevor sie aufsetzt.</footer>
+  </main>
+</body>
+</html>

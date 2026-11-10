@@ -5,12 +5,20 @@ const W := 240
 const H := 128
 const DT := 1.0 / 30.0
 const GRAVITY := 39.24
-const PROTOCOL_VERSION := 2
+const PROTOCOL_VERSION := 4
+const DROP_INTERVAL := 150
+const BUFF_DURATION := 8.0
+const BUFF_LABELS := ["REPARATUR", "SCHILD", "SCHNELLFEUER"]
 const MAX_HP := 1000
 const SHOT_DAMAGE := 200
 const BLAST_RADIUS := 14.0
 const HULL_RADIUS := 4.0
 var cells := PackedByteArray()
+var terrain_revision := 0
+var drop: Dictionary = {}
+var last_buff_player := -1
+var last_buff_kind := -1
+var buff_notice := 0.0
 var cannons: Array[Dictionary] = []
 var shots: Array[Dictionary] = []
 var tick := 0
@@ -25,6 +33,11 @@ func _init() -> void:
 func reset() -> void:
 	cells.resize(W * H)
 	cells.fill(0)
+	terrain_revision += 1
+	drop.clear()
+	last_buff_player = -1
+	last_buff_kind = -1
+	buff_notice = 0.0
 	for x in W:
 		var surface := int(81.0 + 10.0 * sin(x * 0.035) + 5.0 * sin(x * 0.081))
 		for y in range(surface, H):
@@ -33,7 +46,7 @@ func reset() -> void:
 	for x in [40.0, 200.0]:
 		cannons.append({"x": x, "y": float(surface_at(int(x))) - 3.0, "vy": 0.0,
 			"angle": 45.0, "power": 55.0, "cooldown": 0.0, "tilt": 0.0,
-			"hp": MAX_HP, "max_hp": MAX_HP, "hit_flash": 0.0})
+			"hp": MAX_HP, "max_hp": MAX_HP, "hit_flash": 0.0, "shield": 0.0, "rapid": 0.0})
 	shots.clear()
 	tick = 0
 	impacts = 0
@@ -61,8 +74,8 @@ func input_player(player: int, angle: float, power: float, fire: bool) -> void:
 		var direction := Vector2(cos(deg_to_rad(c.angle)) * (1.0 if player == 0 else -1.0), -sin(deg_to_rad(c.angle)))
 		var pos := Vector2(c.x, c.y - 1.0) + direction * 7.0
 		shots.append({"x": pos.x, "y": pos.y, "vx": direction.x * c.power,
-			"vy": direction.y * c.power, "age": 0.0})
-		c.cooldown = 0.7
+			"vy": direction.y * c.power, "age": 0.0, "owner": player})
+		c.cooldown = 0.35 if c.rapid > 0.0 else 0.7
 
 func cannon_at(pos: Vector2) -> int:
 	for i in cannons.size():
@@ -80,6 +93,7 @@ func explode(cx: float, cy: float, direct_player: int = -1) -> void:
 		if c.hp <= 0: continue
 		var distance := maxf(0.0, Vector2(cx, cy).distance_to(Vector2(c.x, c.y)) - HULL_RADIUS)
 		var damage := SHOT_DAMAGE if i == direct_player else int(round(SHOT_DAMAGE * maxf(0.0, 1.0 - distance / BLAST_RADIUS)))
+		if c.shield > 0.0: damage = int(round(damage * 0.5))
 		if damage > 0:
 			c.hp = maxi(0, int(c.hp) - damage)
 			c.hit_flash = 0.25
@@ -93,12 +107,35 @@ func resolve_round() -> void:
 		round_over = true
 		winner = alive[0] if alive.size() == 1 else -1
 		shots.clear()
+		drop.clear()
+
+func update_drop() -> void:
+	if tick % DROP_INTERVAL == 0:
+		drop = {"x": float(randi_range(96, 144)), "y": 4.0, "kind": randi_range(0, BUFF_LABELS.size() - 1)}
+	if drop.is_empty(): return
+	drop.y += 19.0 * DT
+	if solid(int(drop.x), int(drop.y)) or drop.y >= H: drop.clear()
+
+func collect_drop(player: int) -> void:
+	var c: Dictionary = cannons[player]
+	if c.hp > 0:
+		match int(drop.kind):
+			0: c.hp = mini(MAX_HP, int(c.hp) + 150)
+			1: c.shield = BUFF_DURATION
+			2: c.rapid = BUFF_DURATION
+		last_buff_player = player
+		last_buff_kind = int(drop.kind)
+		buff_notice = 2.0
+	drop.clear()
 
 func crater(cx: float, cy: float, radius: float = 10.0) -> void:
+	var changed := false
 	for y in range(maxi(0, int(cy - radius)), mini(H, int(cy + radius) + 1)):
 		for x in range(maxi(0, int(cx - radius)), mini(W, int(cx + radius) + 1)):
 			if cells[y * W + x] == 1 and Vector2(x - cx, y - cy).length_squared() < radius * radius:
 				cells[y * W + x] = 0
+				changed = true
+	if changed: terrain_revision += 1
 	impacts += 1
 
 func step() -> void:
@@ -124,7 +161,10 @@ func step() -> void:
 			cells[index] = 0
 			cells[target] = 1
 			moved += 1
+	if moved > 0: terrain_revision += 1
 	for c in cannons:
+		c.shield = maxf(0.0, c.shield - DT)
+		c.rapid = maxf(0.0, c.rapid - DT)
 		c.hit_flash = maxf(0.0, c.hit_flash - DT)
 		c.cooldown = maxf(0.0, c.cooldown - DT)
 		c.vy += GRAVITY * DT
@@ -142,6 +182,8 @@ func step() -> void:
 		c.y = target_y
 		c.tilt = clampf(atan2(float(right - left), 6.0), -0.5, 0.5)
 	if round_over: return
+	buff_notice = maxf(0.0, buff_notice - DT)
+	update_drop()
 	for i in range(shots.size() - 1, -1, -1):
 		var shot: Dictionary = shots[i]
 		shot.vy += GRAVITY * DT
@@ -152,6 +194,10 @@ func step() -> void:
 		for substep in count:
 			shot.x += shot.vx * DT / count
 			shot.y += shot.vy * DT / count
+			if not drop.is_empty() and shot.has("owner") and Vector2(shot.x, shot.y).distance_squared_to(Vector2(drop.x, drop.y)) <= 25.0:
+				collect_drop(int(shot.owner))
+				hit = true
+				break
 			var target := cannon_at(Vector2(shot.x, shot.y))
 			if target != -1:
 				explode(shot.x, shot.y, target)
@@ -169,6 +215,7 @@ func step() -> void:
 func snapshot() -> Dictionary:
 	return {"type": "state", "version": PROTOCOL_VERSION, "tick": tick, "impacts": impacts,
 		"round_over": round_over, "winner": winner, "moved": moved,
+		"drop": drop, "last_buff_player": last_buff_player, "last_buff_kind": last_buff_kind, "buff_notice": buff_notice,
 		"cells": Marshalls.raw_to_base64(cells), "cannons": cannons, "shots": shots}
 
 func apply_snapshot(state: Dictionary) -> bool:
@@ -181,7 +228,7 @@ func apply_snapshot(state: Dictionary) -> bool:
 	if state.winner != int(state.winner) or int(state.winner) < -1 or int(state.winner) > 1: return false
 	for c in next_cannons:
 		if not c is Dictionary: return false
-		for key in ["x", "y", "vy", "angle", "power", "cooldown", "tilt", "hp", "max_hp", "hit_flash"]:
+		for key in ["x", "y", "vy", "angle", "power", "cooldown", "tilt", "hp", "max_hp", "hit_flash", "shield", "rapid"]:
 			if not numeric(c.get(key)): return false
 		if c.hp < 0 or c.hp > MAX_HP or c.max_hp != MAX_HP: return false
 	for shot in next_shots:
@@ -190,9 +237,25 @@ func apply_snapshot(state: Dictionary) -> bool:
 			if not numeric(shot.get(key)): return false
 	for key in ["tick", "impacts", "moved"]:
 		if not numeric(state.get(key)) or state[key] < 0: return false
+	var next_drop = state.get("drop")
+	if not next_drop is Dictionary: return false
+	if not next_drop.is_empty():
+		if not numeric(next_drop.get("x")) or not numeric(next_drop.get("y")): return false
+		if next_drop.x < 0 or next_drop.x >= W or next_drop.y < 0 or next_drop.y >= H: return false
+		if not index_in_range(next_drop.get("kind"), 0, BUFF_LABELS.size() - 1): return false
+	if not index_in_range(state.get("last_buff_player"), -1, 1): return false
+	if not index_in_range(state.get("last_buff_kind"), -1, BUFF_LABELS.size() - 1): return false
+	if not numeric(state.get("buff_notice")) or state.buff_notice < 0 or state.buff_notice > 2.0: return false
+	if state.buff_notice > 0 and (state.last_buff_player < 0 or state.last_buff_kind < 0): return false
 	var decoded := Marshalls.base64_to_raw(str(state.get("cells", "")))
 	if decoded.size() != W * H: return false
-	cells = decoded
+	if decoded != cells:
+		cells = decoded
+		terrain_revision += 1
+	drop = next_drop.duplicate()
+	last_buff_player = int(state.last_buff_player)
+	last_buff_kind = int(state.last_buff_kind)
+	buff_notice = float(state.buff_notice)
 	cannons.assign(next_cannons.duplicate(true))
 	shots.assign(next_shots.duplicate(true))
 	tick = int(state.tick)
@@ -204,3 +267,6 @@ func apply_snapshot(state: Dictionary) -> bool:
 
 func numeric(value: Variant) -> bool:
 	return (value is int or value is float) and is_finite(float(value))
+
+func index_in_range(value: Variant, low: int, high: int) -> bool:
+	return numeric(value) and value >= low and value <= high and int(value) == value

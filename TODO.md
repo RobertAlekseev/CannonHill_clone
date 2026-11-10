@@ -2,7 +2,7 @@
 
 Aktuell arbeitet Robert allein. GitHub-Issues sind die verbindliche Zuweisung; diese Liste beschreibt die Pakete.
 
-Aktueller Schwerpunkt: **Godot mit Lebenspunkten**. Unity und Unreal bleiben zunächst auf Protokoll v1; Godot läuft mit v2. Historische Waffen sind in `docs/CANNONHILL_REFERENCE.md` erfasst, weitere Waffentypen sind noch nicht implementiert.
+Godot v4, Unity v5 und Unreal v6 haben fallende Buff-Kisten und Lebenspunkte. In Unreal fahren A/D und 1/2/3 wählen Standard, Schwer und Schnell.
 
 | ID | Aufgabe / Dateien | Abnahme | Verantwortlich | Status |
 |---|---|---|---|---|
@@ -10,7 +10,7 @@ Aktueller Schwerpunkt: **Godot mit Lebenspunkten**. Unity und Unreal bleiben zun
 | G1 | Godot-Sand und Kanonen: `godot/simulation.gd` | Sand bleibt erhalten, Kanone steht und sackt nach Untergrabung ab | Robert | Automatisiert geprüft |
 | G2 | Godot-Ansicht und LAN: `godot/main.gd` | Zwei Prozesse tauschen Zustände und Feuerbefehle aus | Robert | Loopback und Ansicht geprüft |
 | G3 | Godot-Lebenspunkte und Rundenende | Treffer, Explosionsabfall, Selbstschaden, Zerstörung und Neustart inkl. LAN | Robert | 29 Simulationstests, TCP-Integration und native Ansichten geprüft |
-| U1 | Unity-Parität: `unity/Assets/` | Simulationstests, Windows-Build und LAN-Schnittstelle | Robert | Initialstand geprüft; Gesundheitsparität zurückgestellt |
+| U1 | Unity-Parität: `unity/Assets/` | Simulationstests, Windows-Build und LAN-Schnittstelle | Robert | Lebenspunkte und Buff-Kisten umgesetzt |
 | E1 | Unreal-Parität: `unreal/` | Kompilation, Play, Sand und Projektil, Host/Client | Robert | Quellprojekt; Engine fehlt |
 | L1 | Echter LAN-Test / zwei PCs: `docs/VALIDATION.md` | Beide können gleichzeitig schießen; Trennung und Neuverbindung geprüft | Robert | Offen |
 | P1 | Physik vertiefen | Vorschlag für freie Rotation, Radkontakt und Umkippen mit kleinem Testfall | Noch unbesetzt | Später |

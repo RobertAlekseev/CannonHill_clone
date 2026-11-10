@@ -1,6 +1,10 @@
 extends Node2D
 const Sim = preload("res://simulation.gd")
+const RustClient = preload("res://rust_client.gd")
 const PORT := 28741
+var rust_client = RustClient.new()
+var rust_sequence := -1
+var rust_round := -1
 var sim = Sim.new()
 var server := TCPServer.new()
 var peer: StreamPeerTCP
@@ -19,10 +23,13 @@ var capture_path := ""
 var smoke_ticks := 0
 var image := Image.create(Sim.W, Sim.H, false, Image.FORMAT_RGBA8)
 var texture: ImageTexture
+var painted_revision := -1
 var ip_field: LineEdit
 var status_label: Label
 var values_label: Label
 var round_label: Label
+var restart_button: Button
+var excavate_button: Button
 var origin := Vector2(70, 240)
 var cell_scale := 4.0
 
@@ -32,6 +39,7 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--host": host()
 		elif arg.begins_with("--join="): join(arg.trim_prefix("--join="))
+		elif arg.begins_with("--rust-server="): join(arg.trim_prefix("--rust-server="))
 		elif arg == "--smoke": auto_smoke = true
 		elif arg.begins_with("--capture="): capture_path = arg.trim_prefix("--capture=")
 	paint_terrain()
@@ -54,12 +62,14 @@ func make_ui() -> void:
 	ip_field.position = Vector2(288, 99)
 	ip_field.size = Vector2(185, 34)
 	ip_field.text = "127.0.0.1"
+	ip_field.tooltip_text = "Godot-IP oder Rust-Server, z.B. ws://127.0.0.1:8000/ws"
 	add_child(ip_field)
 	button("Verbinden", 486, func(): join(ip_field.text.strip_edges()))
-	button("Neustart", 624, func():
-		if mode != "client": sim.reset())
-	button("Boden lösen", 762, func():
-		if mode != "client": sim.crater(sim.cannons[player].x, sim.cannons[player].y + 8, 12))
+	restart_button = button("Neustart", 624, func():
+		if mode == "rust": rust_client.restart()
+		elif mode != "client": sim.reset())
+	excavate_button = button("Boden lösen", 762, func():
+		if mode != "client" and mode != "rust": sim.crater(sim.cannons[player].x, sim.cannons[player].y + 8, 12))
 	button("FEUER", 900, func(): fire_pending = true)
 	status_label = Label.new()
 	status_label.position = Vector2(38, 144)
@@ -77,13 +87,13 @@ func make_ui() -> void:
 	round_label.modulate = Color("f4d59a")
 	add_child(round_label)
 	var help := Label.new()
-	help.text = "↑ ↓ Winkel     ← → Stärke     LEERTASTE Feuer     TAB Spieler (offline)     |     Fels trägt · Sand rieselt"
+	help.text = "↑ ↓ Winkel · ← → Stärke · Leertaste Feuer · Tab offline · Rust-Adresse: ws://HOST:8000/ws"
 	help.position = Vector2(38, 824)
 	help.add_theme_font_size_override("font_size", 14)
 	help.modulate = Color("8ca9b9")
 	add_child(help)
 
-func button(text: String, x: float, action: Callable) -> void:
+func button(text: String, x: float, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.position = Vector2(x, 99)
@@ -91,8 +101,13 @@ func button(text: String, x: float, action: Callable) -> void:
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(action)
 	add_child(b)
+	return b
 
 func disconnect_network() -> void:
+	rust_client.close()
+	rust_sequence = -1
+	rust_round = -1
+	fire_pending = false
 	if peer: peer.disconnect_from_host()
 	peer = null
 	server.stop()
@@ -114,6 +129,11 @@ func host() -> void:
 
 func join(address: String) -> void:
 	disconnect_network()
+	ip_field.release_focus()
+	if address.begins_with("ws://") or address.begins_with("wss://"):
+		mode = "rust"
+		rust_client.connect_to(address)
+		return
 	peer = StreamPeerTCP.new()
 	var error := peer.connect_to_host(address, PORT)
 	if error != OK:
@@ -164,7 +184,7 @@ func network() -> void:
 		incoming = incoming.substr(split + 1)
 		if not data is Dictionary: continue
 		if data.get("version") != Sim.PROTOCOL_VERSION:
-			status = "ANDERE SPIELVERSION / Beide Spieler benötigen Godot mit Lebenspunkten (v2)"
+			status = "ANDERE SPIELVERSION / Beide Spieler benötigen Godot mit Buff-Kisten (v4)"
 			peer.disconnect_from_host()
 			peer = null
 			incoming = ""
@@ -186,14 +206,30 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			power = sim.cannons[player].power
 
 func _process(delta: float) -> void:
-	network()
+	if mode == "rust":
+		rust_client.poll(delta)
+		status = rust_client.status
+		if rust_client.sequence != rust_sequence and not rust_client.state.is_empty():
+			var changed_player: bool = player != rust_client.player
+			var changed_round: bool = rust_round != rust_client.round_id
+			player = rust_client.player
+			rust_round = rust_client.round_id
+			rust_sequence = rust_client.sequence
+			rust_client.apply_to(sim)
+			if changed_player or changed_round:
+				angle = sim.cannons[player].angle
+				power = sim.cannons[player].power
+				fire_pending = false
+		if rust_client.players < 2: fire_pending = false
+	else:
+		network()
 	if not ip_field.has_focus():
 		angle = clampf(angle + (float(Input.is_physical_key_pressed(KEY_UP)) - float(Input.is_physical_key_pressed(KEY_DOWN))) * delta * 40.0, 5, 85)
 		power = clampf(power + (float(Input.is_physical_key_pressed(KEY_RIGHT)) - float(Input.is_physical_key_pressed(KEY_LEFT))) * delta * 30.0, 15, 90)
 	accumulator += minf(delta, 0.15)
 	while accumulator >= Sim.DT:
 		accumulator -= Sim.DT
-		if mode != "client":
+		if mode != "client" and mode != "rust":
 			sim.input_player(player, angle, power, fire_pending)
 			sim.step()
 			fire_pending = false
@@ -207,21 +243,40 @@ func _process(delta: float) -> void:
 	send_clock += delta
 	if send_clock >= 0.1:
 		send_clock = 0.0
-		if mode == "host": send(sim.snapshot())
+		if mode == "rust":
+			if rust_client.send_input(angle, power, fire_pending): fire_pending = false
+		elif mode == "host": send(sim.snapshot())
 		elif mode == "client" and peer:
 			if outgoing.is_empty():
 				send({"type": "input", "version": Sim.PROTOCOL_VERSION, "angle": angle, "power": power, "fire": fire_pending})
 				fire_pending = false
 	paint_terrain()
+	restart_button.disabled = mode == "client" or (mode == "rust" and (rust_client.player != 0 or rust_client.round_id < 0))
+	excavate_button.disabled = mode == "client" or mode == "rust"
 	status_label.text = status
 	values_label.text = "SPIELER %d     WINKEL %02d°     STÄRKE %02d     |     EINSCHLÄGE %d     SAND IN BEWEGUNG %d" % [player + 1, angle, power, sim.impacts, sim.moved]
+	if mode == "rust":
+		values_label.text = "SPIELER %d     WINKEL %02d°     STÄRKE %02d     |     SERVER-TICK %d" % [player + 1, angle, power, sim.tick]
 	if sim.round_over:
 		round_label.text = ("UNENTSCHIEDEN" if sim.winner == -1 else "SPIELER %d GEWINNT" % (sim.winner + 1)) + "\nNeustart für nächste Runde"
 	else:
-		round_label.text = "STANDARDGESCHOSS\n200 max. Schaden"
+		var c: Dictionary = sim.cannons[player]
+		var active := ""
+		if c.shield > 0.0: active += "  SCHILD %ds" % int(ceil(c.shield))
+		if c.rapid > 0.0: active += "  SCHNELL %ds" % int(ceil(c.rapid))
+		var notice := "Kisten abschiessen"
+		if sim.buff_notice > 0.0:
+			notice = "P%d: %s" % [sim.last_buff_player + 1, Sim.BUFF_LABELS[sim.last_buff_kind]]
+		elif mode == "rust" and rust_client.warning_x >= 0:
+			notice = "Abwurf in Kürze"
+		elif not sim.drop.is_empty():
+			notice = "Kiste: " + Sim.BUFF_LABELS[int(sim.drop.kind)]
+		round_label.text = notice + "\n" + active.strip_edges()
 	queue_redraw()
 
 func paint_terrain() -> void:
+	if painted_revision == sim.terrain_revision: return
+	painted_revision = sim.terrain_revision
 	for y in Sim.H:
 		for x in Sim.W:
 			var cell: int = sim.cells[y * Sim.W + x]
@@ -256,6 +311,17 @@ func _draw() -> void:
 			draw_line(p + Vector2(-8, -20), p + Vector2(8, -4), Color("ef9c86"), 2, true)
 			draw_line(p + Vector2(8, -20), p + Vector2(-8, -4), Color("ef9c86"), 2, true)
 		elif player == i: draw_circle(p - Vector2(0, 35), 3, color)
+	if mode == "rust" and rust_client.warning_x >= 0:
+		var p := origin + Vector2(rust_client.warning_x * cell_scale, 12)
+		draw_line(p + Vector2(-9, -5), p + Vector2(0, 6), Color("f4d59a"), 2)
+		draw_line(p + Vector2(0, 6), p + Vector2(9, -5), Color("f4d59a"), 2)
+	if not sim.drop.is_empty():
+		var p := origin + Vector2(sim.drop.x, sim.drop.y) * cell_scale
+		var tint: Color = [Color("#8ce99a"), Color("#80b9ff"), Color("#ffc971")][int(sim.drop.kind)]
+		draw_arc(p - Vector2(0, 11), 12, PI, TAU, 16, tint, 2, true)
+		draw_line(p - Vector2(12, 11), p, tint, 1, true)
+		draw_line(p + Vector2(12, -11), p, tint, 1, true)
+		draw_rect(Rect2(p - Vector2(7, 5), Vector2(14, 10)), tint)
 	for shot in sim.shots:
 		var p := origin + Vector2(shot.x, shot.y) * cell_scale
 		draw_line(p - Vector2(shot.vx, shot.vy).normalized() * 12, p, Color("f4d59a"), 2, true)

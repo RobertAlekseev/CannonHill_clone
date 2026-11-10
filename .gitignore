@@ -22,3 +22,11 @@ external-assets/*
 .env.*
 *.pfx
 *.key
+
+# Local UE 5.8 project: keep sources, ignore generated engine files.
+unreal 5.8/Binaries/
+unreal 5.8/Intermediate/
+unreal 5.8/Saved/
+unreal 5.8/DerivedDataCache/
+unreal 5.8/.vs/
+unreal 5.8/*.slnx
