@@ -101,9 +101,9 @@ func poll(delta: float) -> void:
 		status = "RUST-SERVER / Spieler %d" % (player + 1)
 		if players < 2: status += " / warte auf zweiten Spieler"
 
-func send_input(angle: float, power: float, fire: bool) -> bool:
+func send_input(angle: float, power: float, fire: bool, drive: float = 0.0) -> bool:
 	if players != 2: return false
-	return send({"type": "input", "round": round_id, "angle": angle, "power": power, "fire": fire})
+	return send({"type": "input", "round": round_id, "angle": angle, "power": power, "fire": fire, "drive": drive})
 
 func restart() -> bool:
 	if player != 0 or round_id < 0: return false

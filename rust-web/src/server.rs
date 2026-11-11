@@ -33,6 +33,9 @@ enum Command {
         angle: f32,
         power: f32,
         fire: bool,
+        // Optional so older clients without driving keep working.
+        #[serde(default)]
+        drive: f32,
     },
     Restart {
         round: u32,
@@ -44,6 +47,7 @@ struct Controls {
     angle: f32,
     power: f32,
     fire: bool,
+    drive: f32,
 }
 
 impl From<super::Cannon> for Controls {
@@ -52,6 +56,7 @@ impl From<super::Cannon> for Controls {
             angle: cannon.angle,
             power: cannon.power,
             fire: false,
+            drive: 0.0,
         }
     }
 }
@@ -82,6 +87,7 @@ impl Room {
                 angle,
                 power,
                 fire,
+                drive,
             } if round == self.round
                 && self.players() == 2
                 && angle.is_finite()
@@ -91,6 +97,7 @@ impl Room {
                     input.angle = angle;
                     input.power = power;
                     input.fire |= fire;
+                    input.drive = if drive.is_finite() { drive } else { 0.0 };
                 }
             }
             Command::Restart { round } if player == 0 && round == self.round => {
@@ -112,6 +119,7 @@ impl Room {
         }
         for (index, seat) in self.seats.iter_mut().enumerate() {
             if let Some(input) = seat {
+                self.game.drive(index, input.drive);
                 self.game.input(
                     index,
                     input.angle,

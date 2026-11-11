@@ -87,7 +87,7 @@ func make_ui() -> void:
 	round_label.modulate = Color("f4d59a")
 	add_child(round_label)
 	var help := Label.new()
-	help.text = "↑ ↓ Winkel · ← → Stärke · Leertaste Feuer · Tab offline · Rust-Adresse: ws://HOST:8000/ws"
+	help.text = "A D fahren (Rust) · ↑ ↓ Winkel · ← → Stärke · Leertaste Feuer · Tab offline · Rust-Adresse: ws://HOST:8000/ws"
 	help.position = Vector2(38, 824)
 	help.add_theme_font_size_override("font_size", 14)
 	help.modulate = Color("8ca9b9")
@@ -244,7 +244,10 @@ func _process(delta: float) -> void:
 	if send_clock >= 0.1:
 		send_clock = 0.0
 		if mode == "rust":
-			if rust_client.send_input(angle, power, fire_pending): fire_pending = false
+			var drive := 0.0
+			if not ip_field.has_focus():
+				drive = float(Input.is_physical_key_pressed(KEY_D)) - float(Input.is_physical_key_pressed(KEY_A))
+			if rust_client.send_input(angle, power, fire_pending, drive): fire_pending = false
 		elif mode == "host": send(sim.snapshot())
 		elif mode == "client" and peer:
 			if outgoing.is_empty():

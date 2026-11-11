@@ -102,8 +102,8 @@ function connectLan() {
         drop_state: field => state?.drop?.[field] ?? -1,
         drop_warning_x: () => state?.warning ?? -1,
         result: () => state?.result ?? -2,
-        input: (_player, angle, power, fire) => {
-            return state?.players === 2 && send({ type: "input", angle, power, fire: Boolean(fire) });
+        input: (_player, angle, power, fire, drive = 0) => {
+            return state?.players === 2 && send({ type: "input", angle, power, fire: Boolean(fire), drive });
         },
         reset: () => send({ type: "restart" }),
         step: () => {},
@@ -151,6 +151,7 @@ async function start() {
     arena.addEventListener("blur", () => { keys.clear(); fire = false; });
 
     function selectPlayer() {
+        game.drive?.(player, 0);
         player = 1 - player;
         angle = game.cannon(player, 2);
         power = game.cannon(player, 3);
@@ -159,7 +160,7 @@ async function start() {
     }
 
     arena.addEventListener("keydown", event => {
-        if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space", "Tab"].includes(event.code)) return;
+        if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyA", "KeyD", "Space", "Tab"].includes(event.code)) return;
         if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
         if (lan && event.code === "Tab") return;
         event.preventDefault();
@@ -317,7 +318,9 @@ async function start() {
             if (session && !session.ready) { fire = false; continue; }
             angle = Math.max(5, Math.min(85, angle + (Number(keys.has("ArrowUp")) - Number(keys.has("ArrowDown"))) * 40 * DT));
             power = Math.max(15, Math.min(90, power + (Number(keys.has("ArrowRight")) - Number(keys.has("ArrowLeft"))) * 30 * DT));
-            if (game.input(player, angle, power, Number(fire)) !== false) fire = false;
+            const drive = Number(keys.has("KeyD")) - Number(keys.has("KeyA"));
+            game.drive?.(player, drive);
+            if (game.input(player, angle, power, Number(fire), drive) !== false) fire = false;
             game.step();
         }
         const drawStart = measure ? performance.now() : 0;

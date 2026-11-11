@@ -11,6 +11,11 @@ const W: usize = 240 * MAP_SCALE;
 const H: usize = 128 * MAP_SCALE;
 const DT: f32 = 1.0 / 30.0;
 const GRAVITY: f32 = 39.24;
+// Power 55 (the default) reaches the opposite cannon on flat ground at 45°.
+const MUZZLE_SCALE: f32 = 1.45;
+const DRIVE_SPEED: f32 = 14.0;
+// Highest step (in cells) a cannon can climb while driving.
+const MAX_CLIMB: f32 = 2.5;
 const MAX_HP: i32 = 1000;
 const DROP_INTERVAL: u32 = 150;
 const BUFF_TICKS: u32 = 240;
@@ -22,6 +27,7 @@ struct Cannon {
     vy: f32,
     angle: f32,
     power: f32,
+    drive: f32,
     hp: i32,
     cooldown: u32,
     shield: u32,
@@ -48,6 +54,7 @@ impl Cannon {
             vy: 0.0,
             angle: 45.0,
             power: 55.0,
+            drive: 0.0,
             hp: MAX_HP,
             cooldown: 0,
             shield: 0,
@@ -156,6 +163,31 @@ impl Game {
         }
     }
 
+    fn drive(&mut self, player: usize, direction: f32) {
+        if let Some(cannon) = self.cannons.get_mut(player) {
+            cannon.drive = if direction.is_finite() {
+                direction.clamp(-1.0, 1.0)
+            } else {
+                0.0
+            };
+        }
+    }
+
+    fn move_cannon(&mut self, i: usize) {
+        let c = self.cannons[i];
+        if c.drive == 0.0 || c.hp <= 0 || self.result != -2 || c.vy != 0.0 {
+            return;
+        }
+        let x = (c.x + c.drive * DRIVE_SPEED * DT).clamp(4.0, (W - 5) as f32);
+        let floor = self.floor_at(x as i32, (c.y - MAX_CLIMB - 1.0).max(0.0) as i32) as f32;
+        if floor < c.y - MAX_CLIMB {
+            return;
+        }
+        let c = &mut self.cannons[i];
+        c.x = x;
+        c.y = c.y.min(floor);
+    }
+
     fn input(&mut self, player: usize, angle: f32, power: f32, fire: bool) {
         if self.result != -2 || !angle.is_finite() || !power.is_finite() {
             return;
@@ -174,8 +206,8 @@ impl Game {
         self.shots.push(Shot {
             x: cannon.x + 7.0 * dx,
             y: cannon.y - 1.0 + 7.0 * dy,
-            vx: dx * cannon.power,
-            vy: dy * cannon.power,
+            vx: dx * cannon.power * MUZZLE_SCALE,
+            vy: dy * cannon.power * MUZZLE_SCALE,
             owner: player,
             age: 0,
         });
@@ -261,6 +293,7 @@ impl Game {
         self.tick = self.tick.wrapping_add(1);
         self.settle();
         for i in 0..2 {
+            self.move_cannon(i);
             let c = self.cannons[i];
             let floor = self.floor_at(c.x as i32, (c.y + 2.0) as i32) as f32;
             let c = &mut self.cannons[i];
@@ -371,6 +404,11 @@ pub extern "C" fn reset(seed: u32) {
 #[unsafe(no_mangle)]
 pub extern "C" fn input(player: usize, angle: f32, power: f32, fire: u32) {
     GAME.with_borrow_mut(|g| g.input(player, angle, power, fire != 0));
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn drive(player: usize, direction: f32) {
+    GAME.with_borrow_mut(|g| g.drive(player, direction));
 }
 
 #[unsafe(no_mangle)]
